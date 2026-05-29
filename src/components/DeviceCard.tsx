@@ -33,16 +33,16 @@ export function DeviceCard({ device }: DeviceCardProps) {
 
         <div className="mt-4 pt-4 border-t border-gray-100">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">Firmware</span>
+            <span className="text-gray-500">Phiên bản</span>
             <span className="font-medium text-gray-900">
-              {device.firmwareVersion || 'Unknown'}
+              {device.firmwareVersion || 'Không xác định'}
             </span>
           </div>
           {device.updatedAt && (
             <div className="flex items-center justify-between text-sm mt-2">
-              <span className="text-gray-500">Last updated</span>
+              <span className="text-gray-500">Cập nhật lần cuối</span>
               <span className="text-gray-700">
-                {new Date(device.updatedAt).toLocaleString()}
+                {new Date(device.updatedAt).toLocaleString('vi-VN')}
               </span>
             </div>
           )}

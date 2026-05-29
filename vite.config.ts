@@ -9,11 +9,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['vite.svg'],
+      includeAssets: ['favicon.png'],
       manifest: {
         name: 'Giabao Inverter',
         short_name: 'Inverter',
-        description: 'Monitor and manage your solar inverter devices',
+        description: 'Giám sát và quản lý thiết bị inverter năng lượng mặt trời',
         theme_color: '#3b82f6',
         background_color: '#f9fafb',
         display: 'standalone',
@@ -21,14 +21,14 @@ export default defineConfig({
         scope: '/app/',
         icons: [
           {
-            src: 'vite.svg',
+            src: 'favicon.png',
             sizes: '192x192',
-            type: 'image/svg+xml',
+            type: 'image/png',
           },
           {
-            src: 'vite.svg',
+            src: 'favicon.png',
             sizes: '512x512',
-            type: 'image/svg+xml',
+            type: 'image/png',
           },
         ],
       },

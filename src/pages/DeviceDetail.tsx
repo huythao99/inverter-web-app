@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -95,20 +95,28 @@ export function DeviceDetail() {
   });
 
   // Initialize form values when data loads
-  if (settingsQuery.data && !settingsValue) {
-    setSettingsValue(settingsQuery.data.value || '');
-  }
-  if (scheduleQuery.data && !scheduleValue) {
-    setScheduleValue(scheduleQuery.data.schedule || '');
-  }
-  if (deviceQuery.data && !deviceName) {
-    setDeviceName(deviceQuery.data.deviceName || '');
-  }
+  useEffect(() => {
+    if (settingsQuery.data) {
+      setSettingsValue(settingsQuery.data.value || '');
+    }
+  }, [settingsQuery.data]);
+
+  useEffect(() => {
+    if (scheduleQuery.data) {
+      setScheduleValue(scheduleQuery.data.schedule || '');
+    }
+  }, [scheduleQuery.data]);
+
+  useEffect(() => {
+    if (deviceQuery.data) {
+      setDeviceName(deviceQuery.data.deviceName || '');
+    }
+  }, [deviceQuery.data]);
 
   const tabs = [
-    { id: 'overview', label: 'Overview', icon: BarChart3 },
-    { id: 'settings', label: 'Settings', icon: Settings },
-    { id: 'schedule', label: 'Schedule', icon: Clock },
+    { id: 'overview', label: 'Tổng quan', icon: BarChart3 },
+    { id: 'settings', label: 'Cài đặt', icon: Settings },
+    { id: 'schedule', label: 'Lịch trình', icon: Clock },
   ];
 
   if (deviceQuery.isLoading) {
@@ -125,12 +133,12 @@ export function DeviceDetail() {
     return (
       <Layout>
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <p className="text-red-600">Failed to load device</p>
+          <p className="text-red-600">Không thể tải thông tin thiết bị</p>
           <Link
             to="/"
             className="mt-4 inline-block px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
           >
-            Back to Dashboard
+            Quay lại Bảng điều khiển
           </Link>
         </div>
       </Layout>
@@ -176,7 +184,7 @@ export function DeviceDetail() {
                 {device?.deviceName || device?.deviceId}
               </h1>
             )}
-            <p className="text-gray-500">Device ID: {deviceId}</p>
+            <p className="text-gray-500">Mã thiết bị: {deviceId}</p>
           </div>
         </div>
 
@@ -220,8 +228,10 @@ export function DeviceDetail() {
               value={settingsValue}
               onChange={setSettingsValue}
               onSave={() => updateSettingsMutation.mutate(settingsValue)}
-              isLoading={settingsQuery.isLoading}
+              isLoading={settingsQuery.isLoading || settingsQuery.isFetching}
               isSaving={updateSettingsMutation.isPending}
+              error={settingsQuery.error}
+              onRetry={() => settingsQuery.refetch()}
             />
           )}
 
@@ -230,8 +240,10 @@ export function DeviceDetail() {
               value={scheduleValue}
               onChange={setScheduleValue}
               onSave={() => updateScheduleMutation.mutate(scheduleValue)}
-              isLoading={scheduleQuery.isLoading}
+              isLoading={scheduleQuery.isLoading || scheduleQuery.isFetching}
               isSaving={updateScheduleMutation.isPending}
+              error={scheduleQuery.error}
+              onRetry={() => scheduleQuery.refetch()}
             />
           )}
         </div>
@@ -328,14 +340,14 @@ function OverviewTab({
     <div className="space-y-8">
       {/* Header with Refresh */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Real-time Data</h3>
+        <h3 className="text-lg font-semibold text-gray-900">Dữ liệu thời gian thực</h3>
         <button
           onClick={onRefresh}
           disabled={isRefreshing}
           className="flex items-center space-x-2 px-3 py-1.5 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
         >
           <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          <span>Refresh</span>
+          <span>Làm mới</span>
         </button>
       </div>
 
@@ -345,28 +357,28 @@ function OverviewTab({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatCard
               icon={Sun}
-              label="PV Power"
+              label="Pin mặt trời"
               value={`${parsedData.pvPower.toFixed(0)} W`}
               subValue={`${parsedData.pvVoltage.toFixed(1)}V / ${parsedData.pvCurrent.toFixed(1)}A`}
               color="yellow"
             />
             <StatCard
               icon={Battery}
-              label="Battery"
+              label="Ắc quy"
               value={`${parsedData.batterySoc.toFixed(0)}%`}
               subValue={`${parsedData.batteryVoltage.toFixed(1)}V / ${parsedData.batteryPower.toFixed(0)}W`}
               color="green"
             />
             <StatCard
               icon={Plug}
-              label="Load"
+              label="Tải"
               value={`${parsedData.loadPower.toFixed(0)} W`}
-              subValue={`${parsedData.loadPercent.toFixed(0)}% capacity`}
+              subValue={`${parsedData.loadPercent.toFixed(0)}% công suất`}
               color="blue"
             />
             <StatCard
               icon={Zap}
-              label="Grid"
+              label="Lưới điện"
               value={`${parsedData.gridPower.toFixed(0)} W`}
               subValue={`${parsedData.gridVoltage.toFixed(1)}V / ${parsedData.gridFrequency.toFixed(1)}Hz`}
               color="purple"
@@ -375,67 +387,67 @@ function OverviewTab({
 
           {/* Detailed Parameters Section */}
           <div className="space-y-4">
-            <h4 className="text-md font-semibold text-gray-700">Detailed Parameters</h4>
+            <h4 className="text-md font-semibold text-gray-700">Thông số chi tiết</h4>
 
             {/* Grid Section */}
             <div className="bg-gray-50 rounded-lg p-4">
               <h5 className="text-sm font-medium text-gray-600 mb-3 flex items-center">
-                <Zap className="w-4 h-4 mr-2" /> Grid Parameters
+                <Zap className="w-4 h-4 mr-2" /> Thông số lưới điện
               </h5>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <DataItem label="Voltage" value={`${parsedData.gridVoltage.toFixed(1)} V`} />
-                <DataItem label="Current" value={`${parsedData.gridCurrent.toFixed(2)} A`} />
-                <DataItem label="Power" value={`${parsedData.gridPower.toFixed(0)} W`} />
-                <DataItem label="Frequency" value={`${parsedData.gridFrequency.toFixed(2)} Hz`} />
+                <DataItem label="Điện áp" value={`${parsedData.gridVoltage.toFixed(1)} V`} />
+                <DataItem label="Dòng điện" value={`${parsedData.gridCurrent.toFixed(2)} A`} />
+                <DataItem label="Công suất" value={`${parsedData.gridPower.toFixed(0)} W`} />
+                <DataItem label="Tần số" value={`${parsedData.gridFrequency.toFixed(2)} Hz`} />
               </div>
             </div>
 
             {/* Battery Section */}
             <div className="bg-green-50 rounded-lg p-4">
               <h5 className="text-sm font-medium text-green-700 mb-3 flex items-center">
-                <Battery className="w-4 h-4 mr-2" /> Battery Parameters
+                <Battery className="w-4 h-4 mr-2" /> Thông số ắc quy
               </h5>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <DataItem label="Voltage" value={`${parsedData.batteryVoltage.toFixed(1)} V`} />
-                <DataItem label="Current" value={`${parsedData.batteryCurrent.toFixed(2)} A`} />
-                <DataItem label="Power" value={`${parsedData.batteryPower.toFixed(0)} W`} />
-                <DataItem label="SOC" value={`${parsedData.batterySoc.toFixed(0)} %`} />
+                <DataItem label="Điện áp" value={`${parsedData.batteryVoltage.toFixed(1)} V`} />
+                <DataItem label="Dòng điện" value={`${parsedData.batteryCurrent.toFixed(2)} A`} />
+                <DataItem label="Công suất" value={`${parsedData.batteryPower.toFixed(0)} W`} />
+                <DataItem label="Dung lượng" value={`${parsedData.batterySoc.toFixed(0)} %`} />
               </div>
             </div>
 
             {/* PV/Solar Section */}
             <div className="bg-yellow-50 rounded-lg p-4">
               <h5 className="text-sm font-medium text-yellow-700 mb-3 flex items-center">
-                <Sun className="w-4 h-4 mr-2" /> PV/Solar Parameters
+                <Sun className="w-4 h-4 mr-2" /> Thông số pin mặt trời
               </h5>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <DataItem label="Voltage" value={`${parsedData.pvVoltage.toFixed(1)} V`} />
-                <DataItem label="Current" value={`${parsedData.pvCurrent.toFixed(2)} A`} />
-                <DataItem label="Power" value={`${parsedData.pvPower.toFixed(0)} W`} />
+                <DataItem label="Điện áp" value={`${parsedData.pvVoltage.toFixed(1)} V`} />
+                <DataItem label="Dòng điện" value={`${parsedData.pvCurrent.toFixed(2)} A`} />
+                <DataItem label="Công suất" value={`${parsedData.pvPower.toFixed(0)} W`} />
               </div>
             </div>
 
             {/* Load & System Section */}
             <div className="bg-blue-50 rounded-lg p-4">
               <h5 className="text-sm font-medium text-blue-700 mb-3 flex items-center">
-                <Activity className="w-4 h-4 mr-2" /> Load & System
+                <Activity className="w-4 h-4 mr-2" /> Tải & Hệ thống
               </h5>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <DataItem label="Load Power" value={`${parsedData.loadPower.toFixed(0)} W`} />
-                <DataItem label="Load %" value={`${parsedData.loadPercent.toFixed(0)} %`} />
-                <DataItem label="Temperature" value={`${parsedData.temperature.toFixed(1)} °C`} />
-                <DataItem label="Mode" value={`${parsedData.operatingMode}`} />
+                <DataItem label="Công suất tải" value={`${parsedData.loadPower.toFixed(0)} W`} />
+                <DataItem label="Phần trăm tải" value={`${parsedData.loadPercent.toFixed(0)} %`} />
+                <DataItem label="Nhiệt độ" value={`${parsedData.temperature.toFixed(1)} °C`} />
+                <DataItem label="Chế độ" value={`${parsedData.operatingMode}`} />
               </div>
             </div>
 
             {/* Energy Totals Section */}
             <div className="bg-purple-50 rounded-lg p-4">
               <h5 className="text-sm font-medium text-purple-700 mb-3 flex items-center">
-                <TrendingUp className="w-4 h-4 mr-2" /> Energy Totals
+                <TrendingUp className="w-4 h-4 mr-2" /> Tổng năng lượng
               </h5>
               <div className="grid grid-cols-2 gap-4">
-                <DataItem label="Total A (Production)" value={`${parsedData.totalA.toFixed(4)} kWh`} />
-                <DataItem label="Total A2 (Consumption)" value={`${parsedData.totalA2.toFixed(4)} kWh`} />
+                <DataItem label="Tổng A (Sản xuất)" value={`${parsedData.totalA.toFixed(4)} kWh`} />
+                <DataItem label="Tổng A2 (Tiêu thụ)" value={`${parsedData.totalA2.toFixed(4)} kWh`} />
               </div>
             </div>
           </div>
@@ -443,7 +455,7 @@ function OverviewTab({
           {/* Raw Data (collapsible for debugging) */}
           <details className="text-sm">
             <summary className="cursor-pointer text-gray-500 hover:text-gray-700">
-              Show Raw Data ({parsedData.rawParts.length} fields)
+              Hiển thị dữ liệu thô ({parsedData.rawParts.length} trường)
             </summary>
             <div className="mt-2 p-3 bg-gray-100 rounded-lg font-mono text-xs overflow-x-auto">
               {parsedData.rawParts.map((part, index) => (
@@ -456,7 +468,7 @@ function OverviewTab({
         </>
       ) : (
         <div className="text-center py-8 text-gray-500">
-          No data available
+          Không có dữ liệu
         </div>
       )}
 
@@ -464,29 +476,29 @@ function OverviewTab({
       {monthlyTotals && (
         <div className="border-t pt-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Monthly Summary ({monthlyTotals.month}/{monthlyTotals.year})
+            Tổng kết tháng ({monthlyTotals.month}/{monthlyTotals.year})
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-blue-50 rounded-lg p-4">
-              <p className="text-sm text-blue-600">Total Production</p>
+              <p className="text-sm text-blue-600">Tổng sản xuất</p>
               <p className="text-2xl font-bold text-blue-900">
                 {monthlyTotals.totalA?.toFixed(2)} kWh
               </p>
             </div>
             <div className="bg-orange-50 rounded-lg p-4">
-              <p className="text-sm text-orange-600">Total Consumption</p>
+              <p className="text-sm text-orange-600">Tổng tiêu thụ</p>
               <p className="text-2xl font-bold text-orange-900">
                 {monthlyTotals.totalA2?.toFixed(2)} kWh
               </p>
             </div>
             <div className="bg-green-50 rounded-lg p-4">
-              <p className="text-sm text-green-600">Average Daily</p>
+              <p className="text-sm text-green-600">Trung bình ngày</p>
               <p className="text-2xl font-bold text-green-900">
                 {monthlyTotals.summary?.averageDailyA?.toFixed(2)} kWh
               </p>
             </div>
             <div className="bg-yellow-50 rounded-lg p-4">
-              <p className="text-sm text-yellow-600">Peak Day</p>
+              <p className="text-sm text-yellow-600">Ngày cao điểm</p>
               <p className="text-2xl font-bold text-yellow-900">
                 {monthlyTotals.summary?.peakDayA?.value?.toFixed(2)} kWh
               </p>
@@ -501,7 +513,7 @@ function OverviewTab({
       {/* Last Updated */}
       {latestData?.updatedAt && (
         <p className="text-sm text-gray-500 text-right border-t pt-4">
-          Last updated: {new Date(latestData.updatedAt).toLocaleString()}
+          Cập nhật lần cuối: {new Date(latestData.updatedAt).toLocaleString('vi-VN')}
         </p>
       )}
     </div>
@@ -561,12 +573,16 @@ function SettingsTab({
   onSave,
   isLoading,
   isSaving,
+  error,
+  onRetry,
 }: {
   value: string;
   onChange: (value: string) => void;
   onSave: () => void;
   isLoading: boolean;
   isSaving: boolean;
+  error: Error | null;
+  onRetry: () => void;
 }) {
   if (isLoading) {
     return (
@@ -576,18 +592,35 @@ function SettingsTab({
     );
   }
 
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900">Cài đặt thiết bị</h3>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+          <p className="text-red-600">Không thể tải cài đặt thiết bị</p>
+          <button
+            onClick={onRetry}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Thử lại
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-gray-900">Device Settings</h3>
+      <h3 className="text-lg font-semibold text-gray-900">Cài đặt thiết bị</h3>
       <p className="text-sm text-gray-500">
-        Configure your device settings. Changes will be synced to the device.
+        Cấu hình cài đặt thiết bị. Các thay đổi sẽ được đồng bộ với thiết bị.
       </p>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={10}
         className="w-full p-4 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        placeholder="Enter device settings..."
+        placeholder="Nhập cài đặt thiết bị..."
       />
       <div className="flex justify-end">
         <button
@@ -600,7 +633,7 @@ function SettingsTab({
           ) : (
             <Save className="w-4 h-4" />
           )}
-          <span>Save Settings</span>
+          <span>Lưu cài đặt</span>
         </button>
       </div>
     </div>
@@ -614,12 +647,16 @@ function ScheduleTab({
   onSave,
   isLoading,
   isSaving,
+  error,
+  onRetry,
 }: {
   value: string;
   onChange: (value: string) => void;
   onSave: () => void;
   isLoading: boolean;
   isSaving: boolean;
+  error: Error | null;
+  onRetry: () => void;
 }) {
   if (isLoading) {
     return (
@@ -629,18 +666,35 @@ function ScheduleTab({
     );
   }
 
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900">Lịch trình thiết bị</h3>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+          <p className="text-red-600">Không thể tải lịch trình thiết bị</p>
+          <button
+            onClick={onRetry}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Thử lại
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-gray-900">Device Schedule</h3>
+      <h3 className="text-lg font-semibold text-gray-900">Lịch trình thiết bị</h3>
       <p className="text-sm text-gray-500">
-        Set up scheduled operations for your device.
+        Thiết lập lịch trình hoạt động cho thiết bị của bạn.
       </p>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={10}
         className="w-full p-4 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        placeholder="Enter device schedule..."
+        placeholder="Nhập lịch trình thiết bị..."
       />
       <div className="flex justify-end">
         <button
@@ -653,7 +707,7 @@ function ScheduleTab({
           ) : (
             <Save className="w-4 h-4" />
           )}
-          <span>Save Schedule</span>
+          <span>Lưu lịch trình</span>
         </button>
       </div>
     </div>

@@ -38,7 +38,7 @@ export function Layout({ children }: LayoutProps) {
                     {user.photoURL ? (
                       <img
                         src={user.photoURL}
-                        alt={user.displayName || 'User'}
+                        alt={user.displayName || 'Người dùng'}
                         className="w-8 h-8 rounded-full"
                       />
                     ) : (
@@ -53,7 +53,7 @@ export function Layout({ children }: LayoutProps) {
                     className="flex items-center space-x-1 text-gray-600 hover:text-gray-900 transition-colors"
                   >
                     <LogOut className="w-5 h-5" />
-                    <span className="hidden sm:block text-sm">Sign out</span>
+                    <span className="hidden sm:block text-sm">Đăng xuất</span>
                   </button>
                 </>
               )}

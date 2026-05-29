@@ -108,7 +108,7 @@ export function AddDevice() {
       console.error('Failed to configure device:', error);
       setSubmitStatus('error');
       setErrorMessage(
-        'Không thể kết nối với thiết bị. Hãy chắc chắn bạn đã kết nối với mạng WiFi "GTIControl963".'
+        'Không thể kết nối với thiết bị. Hãy chắc chắn bạn đã kết nối với mạng WiFi "GTIControl***".'
       );
     } finally {
       setIsSubmitting(false);
@@ -206,7 +206,7 @@ export function AddDevice() {
                   <li>Bật nguồn thiết bị ESP32</li>
                   <li>Mở cài đặt WiFi trên điện thoại/máy tính</li>
                   <li>
-                    Kết nối với mạng: <strong>"GTIControl963"</strong>
+                    Kết nối với mạng: <strong>"GTIControl***"</strong>
                   </li>
                   <li>Quay lại trang này sau khi kết nối</li>
                 </ol>
@@ -223,7 +223,7 @@ export function AddDevice() {
                 onClick={() => setCurrentStep(2)}
                 className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
               >
-                Tôi đã kết nối GTIControl963
+                Tôi đã kết nối GTIControl***
               </button>
             </div>
           )}

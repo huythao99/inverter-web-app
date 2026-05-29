@@ -67,6 +67,10 @@ export const updateDevice = async (
   return response.data;
 };
 
+export const deleteDevice = async (deviceId: string): Promise<void> => {
+  await api.delete(`/devices/${deviceId}`);
+};
+
 // Device Settings
 export const getDeviceSettings = async (
   deviceId: string

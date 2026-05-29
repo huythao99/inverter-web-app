@@ -66,6 +66,35 @@ export function AddDevice() {
     return null;
   };
 
+  const ESP32_IP = '192.168.4.1';
+
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const checkWifiStatus = async (): Promise<string | null> => {
+    try {
+      const response = await fetch(`http://${ESP32_IP}/wifi-status`, {
+        method: 'GET',
+        mode: 'cors',
+      });
+      const status = await response.text();
+      return status;
+    } catch {
+      // CORS error or network error - can't read status
+      return null;
+    }
+  };
+
+  const triggerModeChange = async () => {
+    try {
+      await fetch(`http://${ESP32_IP}/change-mode-wifi`, {
+        method: 'GET',
+        mode: 'no-cors',
+      });
+    } catch {
+      // Ignore errors - device may have already switched modes
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitStatus('idle');
@@ -97,9 +126,7 @@ export function AddDevice() {
       };
 
       // Post to ESP32's local IP with both query params and body (matching Flutter app)
-      // Note: Uses HTTP and no-cors mode because ESP32 device runs locally without HTTPS/CORS support
-      // This is acceptable as the device is on a local network during setup
-      await fetch(`http://192.168.4.1/wifi?${queryParams.toString()}`, {
+      await fetch(`http://${ESP32_IP}/wifi?${queryParams.toString()}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -108,10 +135,30 @@ export function AddDevice() {
         mode: 'no-cors',
       });
 
-      // With no-cors mode, we can't read the response
-      // Assume success if no error thrown
-      setSubmitStatus('success');
-      setCurrentStep(3);
+      // Wait 6 seconds for ESP32 to connect to WiFi (matching Flutter app)
+      await delay(6000);
+
+      // Check WiFi connection status
+      const wifiStatus = await checkWifiStatus();
+
+      if (wifiStatus === '3') {
+        // WiFi connected successfully - trigger mode change
+        await triggerModeChange();
+        await delay(5000);
+        setSubmitStatus('success');
+        setCurrentStep(3);
+      } else if (wifiStatus === null) {
+        // Could not read status (CORS issue) - assume success since request was sent
+        // This is a browser limitation, mobile apps don't have this issue
+        setSubmitStatus('success');
+        setCurrentStep(3);
+      } else {
+        // WiFi connection failed
+        setSubmitStatus('error');
+        setErrorMessage(
+          'Thiết bị không thể kết nối WiFi. Vui lòng kiểm tra tên WiFi và mật khẩu.'
+        );
+      }
     } catch (error) {
       console.error('Failed to configure device:', error);
       setSubmitStatus('error');

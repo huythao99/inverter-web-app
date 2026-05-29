@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -18,6 +18,7 @@ import {
   X,
   Wifi,
   WifiOff,
+  Trash2,
 } from 'lucide-react';
 import { useDeviceMqtt } from '../hooks/useDeviceMqtt';
 import { Layout } from '../components/Layout';
@@ -31,6 +32,7 @@ import {
   updateDeviceSettings,
   updateDeviceSchedule,
   updateDevice,
+  deleteDevice,
   getLatestFirmwareVersion,
   triggerFirmwareUpdate,
 } from '../services/api';
@@ -39,15 +41,17 @@ type TabType = 'overview' | 'settings' | 'schedule';
 
 export function DeviceDetail() {
   const { deviceId } = useParams<{ deviceId: string }>();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [settingsValue, setSettingsValue] = useState('');
   const [scheduleValue, setScheduleValue] = useState('');
   const [deviceName, setDeviceName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // MQTT for real-time data
-  const { connectionStatus, isConnected: mqttConnected, isDeviceOnline } = useDeviceMqtt(deviceId);
+  const { connectionStatus, isDeviceOnline } = useDeviceMqtt(deviceId);
 
   // Queries
   const deviceQuery = useQuery({
@@ -72,8 +76,6 @@ export function DeviceDetail() {
     queryKey: ['device-latest-data', deviceId],
     queryFn: () => getLatestDeviceData(deviceId!),
     enabled: !!deviceId && (activeTab === 'overview' || activeTab === 'settings'),
-    // Use polling as fallback only when MQTT is disconnected
-    refetchInterval: mqttConnected ? false : 10000,
   });
 
   const latestFirmwareQuery = useQuery({
@@ -115,6 +117,14 @@ export function DeviceDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['device', deviceId] });
       setIsEditingName(false);
+    },
+  });
+
+  const deleteDeviceMutation = useMutation({
+    mutationFn: () => deleteDevice(deviceId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['devices'] });
+      navigate('/');
     },
   });
 
@@ -214,7 +224,48 @@ export function DeviceDetail() {
               <ConnectionStatusIndicator status={connectionStatus} />
             </div>
           </div>
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="p-2 hover:bg-red-100 rounded-lg transition-colors text-red-600"
+            title="Xóa thiết bị"
+          >
+            <Trash2 className="w-5 h-5" />
+          </button>
         </div>
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 max-w-sm mx-4 shadow-xl">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Xóa thiết bị?
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Bạn có chắc chắn muốn xóa thiết bị "{device?.deviceName || deviceId}"?
+                Hành động này không thể hoàn tác.
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={() => deleteDeviceMutation.mutate()}
+                  disabled={deleteDeviceMutation.isPending}
+                  className="flex-1 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center"
+                >
+                  {deleteDeviceMutation.isPending ? (
+                    <LoadingSpinner size="sm" className="text-white" />
+                  ) : (
+                    'Xóa'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="border-b border-gray-200">

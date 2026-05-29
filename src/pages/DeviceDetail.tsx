@@ -28,6 +28,8 @@ import {
   updateDeviceSettings,
   updateDeviceSchedule,
   updateDevice,
+  getLatestFirmwareVersion,
+  triggerFirmwareUpdate,
 } from '../services/api';
 
 type TabType = 'overview' | 'settings' | 'schedule';
@@ -63,8 +65,21 @@ export function DeviceDetail() {
   const latestDataQuery = useQuery({
     queryKey: ['device-latest-data', deviceId],
     queryFn: () => getLatestDeviceData(deviceId!),
-    enabled: !!deviceId && activeTab === 'overview',
+    enabled: !!deviceId && (activeTab === 'overview' || activeTab === 'settings'),
     refetchInterval: 10000, // Refresh every 10 seconds
+  });
+
+  const latestFirmwareQuery = useQuery({
+    queryKey: ['latest-firmware'],
+    queryFn: () => getLatestFirmwareVersion(),
+    enabled: activeTab === 'settings',
+  });
+
+  const firmwareUpdateMutation = useMutation({
+    mutationFn: () => triggerFirmwareUpdate(deviceId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['device', deviceId] });
+    },
   });
 
   const monthlyTotalsQuery = useQuery({
@@ -234,6 +249,11 @@ export function DeviceDetail() {
               isSaving={updateSettingsMutation.isPending}
               error={settingsQuery.error}
               onRetry={() => settingsQuery.refetch()}
+              latestData={latestDataQuery.data}
+              currentFirmware={device?.firmwareVersion}
+              latestFirmware={latestFirmwareQuery.data?.version}
+              onFirmwareUpdate={() => firmwareUpdateMutation.mutate()}
+              isUpdatingFirmware={firmwareUpdateMutation.isPending}
             />
           )}
 
@@ -589,6 +609,41 @@ function formatSettingsValue(vBattUvp: number, pMaxDischarge: number): string {
   return `${vBattStr}${pMaxStr}`;
 }
 
+// Parse real-time inverter data for settings display
+function parseRealTimeSettings(value: string): { vBattReal: number; pMaxReal: number } {
+  if (!value) return { vBattReal: 0, pMaxReal: 0 };
+  try {
+    const parts = value.split('#');
+    // Based on mobile app: data[6] = vBattUvpSetReal, data[7] = pMaxDischargeSetReal
+    return {
+      vBattReal: parseFloat(parts[6]) || 0,
+      pMaxReal: parseFloat(parts[7]) || 0,
+    };
+  } catch {
+    return { vBattReal: 0, pMaxReal: 0 };
+  }
+}
+
+// Compare firmware versions
+function compareVersions(current: string, latest: string): number {
+  if (!current || !latest) return 0;
+  try {
+    const currentParts = current.split('.').map(Number);
+    const latestParts = latest.split('.').map(Number);
+    const maxLength = Math.max(currentParts.length, latestParts.length);
+
+    for (let i = 0; i < maxLength; i++) {
+      const c = currentParts[i] || 0;
+      const l = latestParts[i] || 0;
+      if (c < l) return -1;
+      if (c > l) return 1;
+    }
+    return 0;
+  } catch {
+    return 0;
+  }
+}
+
 // Settings Tab Component
 function SettingsTab({
   value,
@@ -598,6 +653,11 @@ function SettingsTab({
   isSaving,
   error,
   onRetry,
+  latestData,
+  currentFirmware,
+  latestFirmware,
+  onFirmwareUpdate,
+  isUpdatingFirmware,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -606,6 +666,11 @@ function SettingsTab({
   isSaving: boolean;
   error: Error | null;
   onRetry: () => void;
+  latestData?: { value: string } | null;
+  currentFirmware?: string;
+  latestFirmware?: string;
+  onFirmwareUpdate: () => void;
+  isUpdatingFirmware: boolean;
 }) {
   const [vBattUvp, setVBattUvp] = useState('48.00');
   const [pMaxDischarge, setPMaxDischarge] = useState('500');
@@ -620,6 +685,10 @@ function SettingsTab({
       setPMaxDischarge(parsed.pMaxDischarge.toString());
     }
   }, [value]);
+
+  // Get real-time values from latest data
+  const realTimeValues = parseRealTimeSettings(latestData?.value || '');
+  const isUpdateAvailable = compareVersions(currentFirmware || '', latestFirmware || '') < 0;
 
   const validateVBatt = (val: string): boolean => {
     const num = parseFloat(val);
@@ -682,7 +751,8 @@ function SettingsTab({
       {/* Voltage Section */}
       <div className="bg-gray-50 rounded-xl p-4 shadow-sm">
         <h4 className="text-base font-semibold text-gray-900 mb-4">Điện áp</h4>
-        <div className="border-t border-gray-200 pt-4">
+        <div className="border-t border-gray-200 pt-4 space-y-4">
+          {/* Editable voltage */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="p-2 bg-yellow-100 rounded-lg">
@@ -709,15 +779,32 @@ function SettingsTab({
             </div>
           </div>
           {vBattError && (
-            <p className="text-red-500 text-xs mt-2 text-right">{vBattError}</p>
+            <p className="text-red-500 text-xs text-right">{vBattError}</p>
           )}
+
+          {/* Real-time voltage (read-only) */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-gray-200 rounded-lg">
+                <Zap className="w-5 h-5 text-gray-500" />
+              </div>
+              <span className="text-sm font-medium text-gray-500">Điện áp ngắt kích thực tế</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="w-24 px-3 py-2 text-right bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-600">
+                {realTimeValues.vBattReal.toFixed(2)}
+              </span>
+              <span className="text-sm text-gray-500 w-8">(V)</span>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Power Section */}
       <div className="bg-gray-50 rounded-xl p-4 shadow-sm">
         <h4 className="text-base font-semibold text-gray-900 mb-4">Công suất</h4>
-        <div className="border-t border-gray-200 pt-4">
+        <div className="border-t border-gray-200 pt-4 space-y-4">
+          {/* Editable power */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="p-2 bg-blue-100 rounded-lg">
@@ -744,8 +831,73 @@ function SettingsTab({
             </div>
           </div>
           {pMaxError && (
-            <p className="text-red-500 text-xs mt-2 text-right">{pMaxError}</p>
+            <p className="text-red-500 text-xs text-right">{pMaxError}</p>
           )}
+
+          {/* Real-time power (read-only) */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-gray-200 rounded-lg">
+                <Activity className="w-5 h-5 text-gray-500" />
+              </div>
+              <span className="text-sm font-medium text-gray-500">Công suất hoà tối đa thực tế</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="w-24 px-3 py-2 text-right bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-600">
+                {realTimeValues.pMaxReal.toFixed(0)}
+              </span>
+              <span className="text-sm text-gray-500 w-8">(W)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Firmware Section */}
+      <div className="bg-gray-50 rounded-xl p-4 shadow-sm">
+        <h4 className="text-base font-semibold text-gray-900 mb-4">Phiên bản</h4>
+        <div className="border-t border-gray-200 pt-4 space-y-4">
+          {/* Current version */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Settings className="w-5 h-5 text-green-600" />
+              </div>
+              <span className="text-sm font-medium text-gray-700">Phiên bản hiện tại</span>
+            </div>
+            <span className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-600">
+              {currentFirmware || '---'}
+            </span>
+          </div>
+
+          {/* Latest version */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <TrendingUp className="w-5 h-5 text-purple-600" />
+              </div>
+              <span className="text-sm font-medium text-gray-700">Phiên bản mới</span>
+            </div>
+            <span className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-600">
+              {latestFirmware || '---'}
+            </span>
+          </div>
+
+          {/* Update button */}
+          <button
+            onClick={onFirmwareUpdate}
+            disabled={!isUpdateAvailable || isUpdatingFirmware}
+            className={`w-full py-3 rounded-xl font-semibold transition-colors flex items-center justify-center space-x-2 ${
+              isUpdateAvailable
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            {isUpdatingFirmware ? (
+              <LoadingSpinner size="sm" className="text-white" />
+            ) : (
+              <span>Cập nhật</span>
+            )}
+          </button>
         </div>
       </div>
 

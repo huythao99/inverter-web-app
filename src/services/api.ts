@@ -160,4 +160,24 @@ export const getDeviceChartData = async (
   return response.data;
 };
 
+// Firmware
+export const getDeviceFirmwareVersion = async (
+  deviceId: string
+): Promise<{ firmwareVersion: string }> => {
+  const response = await api.get(`/devices/${deviceId}/firmware/version`);
+  return response.data;
+};
+
+export const getLatestFirmwareVersion = async (): Promise<{ version: string }> => {
+  const response = await api.get('/firmware/newest');
+  return response.data;
+};
+
+export const triggerFirmwareUpdate = async (
+  deviceId: string
+): Promise<{ success: boolean }> => {
+  const response = await api.post(`/devices/${deviceId}/firmware/update`);
+  return response.data;
+};
+
 export default api;

@@ -91,3 +91,16 @@ export interface ChartDataPoint {
   totalA: number;
   totalA2: number;
 }
+
+export interface WebSocketDeviceData {
+  currentUid: string;
+  wifiSsid: string;
+  data: string;
+}
+
+export interface WebSocketOtaStatus {
+  deviceId: string;
+  status: 'pending' | 'downloading' | 'installing' | 'completed' | 'failed';
+  progress?: number;
+  error?: string;
+}

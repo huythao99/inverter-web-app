@@ -16,7 +16,10 @@ import {
   TrendingUp,
   Plus,
   X,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
+import { useDeviceMqtt } from '../hooks/useDeviceMqtt';
 import { Layout } from '../components/Layout';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import {
@@ -43,6 +46,9 @@ export function DeviceDetail() {
   const [deviceName, setDeviceName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
 
+  // MQTT for real-time data
+  const { connectionStatus, isConnected: mqttConnected } = useDeviceMqtt(deviceId);
+
   // Queries
   const deviceQuery = useQuery({
     queryKey: ['device', deviceId],
@@ -66,7 +72,8 @@ export function DeviceDetail() {
     queryKey: ['device-latest-data', deviceId],
     queryFn: () => getLatestDeviceData(deviceId!),
     enabled: !!deviceId && (activeTab === 'overview' || activeTab === 'settings'),
-    refetchInterval: 10000, // Refresh every 10 seconds
+    // Use polling as fallback only when MQTT is disconnected
+    refetchInterval: mqttConnected ? false : 10000,
   });
 
   const latestFirmwareQuery = useQuery({
@@ -201,7 +208,10 @@ export function DeviceDetail() {
                 {device?.deviceName || device?.deviceId}
               </h1>
             )}
-            <p className="text-gray-500">Mã thiết bị: {deviceId}</p>
+            <div className="flex items-center space-x-2">
+              <p className="text-gray-500">Mã thiết bị: {deviceId}</p>
+              <ConnectionStatusIndicator status={connectionStatus} />
+            </div>
           </div>
         </div>
 
@@ -584,6 +594,46 @@ function DataItem({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-xs text-gray-500">{label}</p>
       <p className="text-sm font-semibold text-gray-900">{value}</p>
+    </div>
+  );
+}
+
+// Connection Status Indicator Component
+function ConnectionStatusIndicator({ status }: { status: string }) {
+  const statusConfig = {
+    connected: {
+      icon: Wifi,
+      color: 'text-green-600',
+      bgColor: 'bg-green-100',
+      label: 'Trực tuyến',
+    },
+    connecting: {
+      icon: Wifi,
+      color: 'text-yellow-600',
+      bgColor: 'bg-yellow-100',
+      label: 'Đang kết nối...',
+    },
+    reconnecting: {
+      icon: Wifi,
+      color: 'text-yellow-600',
+      bgColor: 'bg-yellow-100',
+      label: 'Đang kết nối lại...',
+    },
+    disconnected: {
+      icon: WifiOff,
+      color: 'text-gray-500',
+      bgColor: 'bg-gray-100',
+      label: 'Ngoại tuyến',
+    },
+  };
+
+  const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.disconnected;
+  const Icon = config.icon;
+
+  return (
+    <div className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs ${config.bgColor} ${config.color}`}>
+      <Icon className="w-3 h-3" />
+      <span>{config.label}</span>
     </div>
   );
 }

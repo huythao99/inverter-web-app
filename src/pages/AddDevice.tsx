@@ -82,21 +82,29 @@ export function AddDevice() {
     setIsSubmitting(true);
 
     try {
-      // Create form data for ESP32
-      const formData = new URLSearchParams();
-      formData.append('ssid', wifiSsid.trim());
-      formData.append('password', wifiPassword);
-      formData.append('uid', userId);
+      // Build query parameters (matching Flutter app)
+      const queryParams = new URLSearchParams({
+        ssid: wifiSsid.trim(),
+        password: wifiPassword,
+        uid: userId,
+      });
 
-      // Post to ESP32's local IP
+      // Create request body
+      const bodyData = {
+        ssid: wifiSsid.trim(),
+        password: wifiPassword,
+        uid: userId,
+      };
+
+      // Post to ESP32's local IP with both query params and body (matching Flutter app)
       // Note: Uses HTTP and no-cors mode because ESP32 device runs locally without HTTPS/CORS support
       // This is acceptable as the device is on a local network during setup
-      await fetch('http://192.168.4.1/wifi', {
+      await fetch(`http://192.168.4.1/wifi?${queryParams.toString()}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/json',
         },
-        body: formData.toString(),
+        body: JSON.stringify(bodyData),
         mode: 'no-cors',
       });
 
@@ -104,7 +112,7 @@ export function AddDevice() {
       // Assume success if no error thrown
       setSubmitStatus('success');
       setCurrentStep(3);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to configure device:', error);
       setSubmitStatus('error');
       setErrorMessage(

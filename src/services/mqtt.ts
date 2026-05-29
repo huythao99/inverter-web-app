@@ -2,7 +2,7 @@ import mqtt, { MqttClient } from 'mqtt';
 
 // MQTT broker configuration
 // For browser, we need WebSocket connection (ws:// or wss://)
-const MQTT_BROKER_URL = import.meta.env.VITE_MQTT_BROKER_URL || 'wss://giabao-inverter.com:1883';
+const MQTT_BROKER_URL = import.meta.env.VITE_MQTT_BROKER_URL || 'ws://giabao-inverter.com:9001';
 const MQTT_USERNAME = import.meta.env.VITE_MQTT_USERNAME || 'giabao';
 const MQTT_PASSWORD = import.meta.env.VITE_MQTT_PASSWORD || '0918273645';
 

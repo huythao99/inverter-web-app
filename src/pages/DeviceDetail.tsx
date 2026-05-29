@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useDeviceMqtt } from '../hooks/useDeviceMqtt';
 import { Layout } from '../components/Layout';
+import { useAuth } from '../contexts/AuthContext';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import {
   getDevice,
@@ -41,6 +42,7 @@ type TabType = 'overview' | 'settings' | 'schedule';
 
 export function DeviceDetail() {
   const { deviceId } = useParams<{ deviceId: string }>();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -121,7 +123,7 @@ export function DeviceDetail() {
   });
 
   const deleteDeviceMutation = useMutation({
-    mutationFn: () => deleteDevice(deviceId!),
+    mutationFn: () => deleteDevice(user!.uid, deviceId!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['devices'] });
       navigate('/');

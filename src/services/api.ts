@@ -67,8 +67,13 @@ export const updateDevice = async (
   return response.data;
 };
 
-export const deleteDevice = async (deviceId: string): Promise<void> => {
-  await api.delete(`/devices/${deviceId}`);
+export const deleteDevice = async (userId: string, deviceId: string): Promise<void> => {
+  const token = await getIdToken();
+  await axios.delete(`${API_URL}/api/inverter-device/data/${userId}/${deviceId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 };
 
 // Device Settings

@@ -47,7 +47,7 @@ export function DeviceDetail() {
   const [isEditingName, setIsEditingName] = useState(false);
 
   // MQTT for real-time data
-  const { connectionStatus, isConnected: mqttConnected } = useDeviceMqtt(deviceId);
+  const { connectionStatus, isConnected: mqttConnected, isDeviceOnline } = useDeviceMqtt(deviceId);
 
   // Queries
   const deviceQuery = useQuery({
@@ -210,6 +210,7 @@ export function DeviceDetail() {
             )}
             <div className="flex items-center space-x-2">
               <p className="text-gray-500">Mã thiết bị: {deviceId}</p>
+              <DeviceStatusIndicator isOnline={isDeviceOnline} />
               <ConnectionStatusIndicator status={connectionStatus} />
             </div>
           </div>
@@ -598,14 +599,26 @@ function DataItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-// Connection Status Indicator Component
+// Device Status Indicator Component (online/offline based on MQTT message timeout)
+function DeviceStatusIndicator({ isOnline }: { isOnline: boolean }) {
+  return (
+    <div className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs ${
+      isOnline ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+    }`}>
+      <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`} />
+      <span>{isOnline ? 'Thiết bị hoạt động' : 'Thiết bị ngoại tuyến'}</span>
+    </div>
+  );
+}
+
+// Connection Status Indicator Component (MQTT connection status)
 function ConnectionStatusIndicator({ status }: { status: string }) {
   const statusConfig = {
     connected: {
       icon: Wifi,
       color: 'text-green-600',
       bgColor: 'bg-green-100',
-      label: 'Trực tuyến',
+      label: 'MQTT kết nối',
     },
     connecting: {
       icon: Wifi,
@@ -623,7 +636,7 @@ function ConnectionStatusIndicator({ status }: { status: string }) {
       icon: WifiOff,
       color: 'text-gray-500',
       bgColor: 'bg-gray-100',
-      label: 'Ngoại tuyến',
+      label: 'MQTT ngắt kết nối',
     },
   };
 

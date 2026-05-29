@@ -40,27 +40,64 @@ export function AddDevice() {
     }
   };
 
+  const validateWifiCredentials = (): string | null => {
+    // SSID validation
+    if (!wifiSsid.trim()) {
+      return 'Vui lòng nhập tên WiFi';
+    }
+    if (wifiSsid.length > 32) {
+      return 'Tên WiFi không được vượt quá 32 ký tự';
+    }
+    if (/[^\x20-\x7E]/.test(wifiSsid)) {
+      return 'Tên WiFi chứa ký tự không hợp lệ';
+    }
+
+    // Password validation
+    if (!wifiPassword) {
+      return 'Vui lòng nhập mật khẩu WiFi';
+    }
+    if (wifiPassword.length < 8) {
+      return 'Mật khẩu WiFi phải có ít nhất 8 ký tự';
+    }
+    if (wifiPassword.length > 63) {
+      return 'Mật khẩu WiFi không được vượt quá 63 ký tự';
+    }
+
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setSubmitStatus('idle');
     setErrorMessage('');
+
+    // Validate WiFi credentials before submitting
+    const validationError = validateWifiCredentials();
+    if (validationError) {
+      setSubmitStatus('error');
+      setErrorMessage(validationError);
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       // Create form data for ESP32
       const formData = new URLSearchParams();
-      formData.append('ssid', wifiSsid);
+      formData.append('ssid', wifiSsid.trim());
       formData.append('password', wifiPassword);
       formData.append('uid', userId);
 
       // Post to ESP32's local IP
+      // Note: Uses HTTP and no-cors mode because ESP32 device runs locally without HTTPS/CORS support
+      // This is acceptable as the device is on a local network during setup
       await fetch('http://192.168.4.1/wifi', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: formData.toString(),
-        mode: 'no-cors', // ESP32 might not have CORS headers
+        mode: 'no-cors',
       });
 
       // With no-cors mode, we can't read the response
@@ -71,7 +108,7 @@ export function AddDevice() {
       console.error('Failed to configure device:', error);
       setSubmitStatus('error');
       setErrorMessage(
-        'Could not connect to device. Make sure you are connected to "GTIControl963" WiFi network.'
+        'Không thể kết nối với thiết bị. Hãy chắc chắn bạn đã kết nối với mạng WiFi "GTIControl963".'
       );
     } finally {
       setIsSubmitting(false);
@@ -90,8 +127,8 @@ export function AddDevice() {
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Add New Device</h1>
-            <p className="text-gray-500">Configure your ESP32 inverter device</p>
+            <h1 className="text-2xl font-bold text-gray-900">Thêm thiết bị mới</h1>
+            <p className="text-gray-500">Cấu hình thiết bị inverter ESP32 của bạn</p>
           </div>
         </div>
 
@@ -129,17 +166,17 @@ export function AddDevice() {
                   <Wifi className="w-8 h-8 text-blue-600" />
                 </div>
                 <h2 className="text-xl font-semibold text-gray-900">
-                  Step 1: Connect to Device WiFi
+                  Bước 1: Kết nối WiFi thiết bị
                 </h2>
                 <p className="text-gray-500 mt-2">
-                  First, connect your phone/computer to the device's WiFi network
+                  Đầu tiên, kết nối điện thoại/máy tính của bạn với mạng WiFi của thiết bị
                 </p>
               </div>
 
               {/* User ID Section */}
               <div className="bg-gray-50 rounded-lg p-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Your User ID (save this for Step 2)
+                  ID người dùng của bạn (lưu lại cho Bước 2)
                 </label>
                 <div className="flex items-center space-x-2">
                   <code className="flex-1 bg-white border border-gray-300 rounded-lg px-4 py-3 text-sm font-mono break-all">
@@ -148,7 +185,7 @@ export function AddDevice() {
                   <button
                     onClick={copyToClipboard}
                     className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Copy to clipboard"
+                    title="Sao chép"
                   >
                     {copied ? (
                       <Check className="w-5 h-5" />
@@ -158,27 +195,27 @@ export function AddDevice() {
                   </button>
                 </div>
                 {copied && (
-                  <p className="text-green-600 text-sm mt-2">Copied to clipboard!</p>
+                  <p className="text-green-600 text-sm mt-2">Đã sao chép!</p>
                 )}
               </div>
 
               {/* Instructions */}
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <h3 className="font-medium text-yellow-800 mb-2">Instructions:</h3>
+                <h3 className="font-medium text-yellow-800 mb-2">Hướng dẫn:</h3>
                 <ol className="list-decimal list-inside space-y-2 text-yellow-700 text-sm">
-                  <li>Power on your ESP32 device</li>
-                  <li>Open WiFi settings on your phone/computer</li>
+                  <li>Bật nguồn thiết bị ESP32</li>
+                  <li>Mở cài đặt WiFi trên điện thoại/máy tính</li>
                   <li>
-                    Connect to network: <strong>"GTIControl963"</strong>
+                    Kết nối với mạng: <strong>"GTIControl963"</strong>
                   </li>
-                  <li>Come back to this page after connecting</li>
+                  <li>Quay lại trang này sau khi kết nối</li>
                 </ol>
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-blue-700 text-sm">
-                  <strong>Note:</strong> This page works offline! After connecting to the device WiFi,
-                  you'll lose internet but this page will still work.
+                  <strong>Lưu ý:</strong> Trang này hoạt động ngoại tuyến! Sau khi kết nối WiFi thiết bị,
+                  bạn sẽ mất internet nhưng trang này vẫn hoạt động.
                 </p>
               </div>
 
@@ -186,7 +223,7 @@ export function AddDevice() {
                 onClick={() => setCurrentStep(2)}
                 className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
               >
-                I'm Connected to GTIControl963
+                Tôi đã kết nối GTIControl963
               </button>
             </div>
           )}
@@ -199,10 +236,10 @@ export function AddDevice() {
                   <Settings className="w-8 h-8 text-blue-600" />
                 </div>
                 <h2 className="text-xl font-semibold text-gray-900">
-                  Step 2: Configure Device
+                  Bước 2: Cấu hình thiết bị
                 </h2>
                 <p className="text-gray-500 mt-2">
-                  Enter your home WiFi credentials to connect the device
+                  Nhập thông tin WiFi nhà bạn để kết nối thiết bị
                 </p>
               </div>
 
@@ -216,21 +253,22 @@ export function AddDevice() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Home WiFi Name (SSID)
+                    Tên WiFi nhà (SSID)
                   </label>
                   <input
                     type="text"
                     value={wifiSsid}
                     onChange={(e) => setWifiSsid(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Enter your home WiFi name"
+                    placeholder="Nhập tên WiFi nhà bạn"
                     required
+                    maxLength={32}
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    WiFi Password
+                    Mật khẩu WiFi
                   </label>
                   <div className="relative">
                     <input
@@ -238,8 +276,10 @@ export function AddDevice() {
                       value={wifiPassword}
                       onChange={(e) => setWifiPassword(e.target.value)}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-12"
-                      placeholder="Enter WiFi password"
+                      placeholder="Nhập mật khẩu WiFi"
                       required
+                      minLength={8}
+                      maxLength={63}
                     />
                     <button
                       type="button"
@@ -257,7 +297,7 @@ export function AddDevice() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    User ID
+                    ID người dùng
                   </label>
                   <input
                     type="text"
@@ -266,7 +306,7 @@ export function AddDevice() {
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 font-mono text-sm"
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    This links the device to your account
+                    Liên kết thiết bị với tài khoản của bạn
                   </p>
                 </div>
 
@@ -276,7 +316,7 @@ export function AddDevice() {
                     onClick={() => setCurrentStep(1)}
                     className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
                   >
-                    Back
+                    Quay lại
                   </button>
                   <button
                     type="submit"
@@ -286,10 +326,10 @@ export function AddDevice() {
                     {isSubmitting ? (
                       <>
                         <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                        Configuring...
+                        Đang cấu hình...
                       </>
                     ) : (
-                      'Configure Device'
+                      'Cấu hình thiết bị'
                     )}
                   </button>
                 </div>
@@ -306,26 +346,26 @@ export function AddDevice() {
 
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">
-                  Configuration Sent!
+                  Đã gửi cấu hình!
                 </h2>
                 <p className="text-gray-500 mt-2">
-                  The device is now connecting to your home WiFi
+                  Thiết bị đang kết nối với WiFi nhà bạn
                 </p>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4 text-left">
-                <h3 className="font-medium text-gray-900 mb-2">What happens next:</h3>
+                <h3 className="font-medium text-gray-900 mb-2">Tiếp theo:</h3>
                 <ol className="list-decimal list-inside space-y-2 text-gray-600 text-sm">
-                  <li>Device will restart and connect to your home WiFi</li>
-                  <li>Device will register with the server</li>
-                  <li>It will appear in your dashboard within 1-2 minutes</li>
-                  <li>Reconnect your phone/computer to your home WiFi</li>
+                  <li>Thiết bị sẽ khởi động lại và kết nối WiFi nhà bạn</li>
+                  <li>Thiết bị sẽ đăng ký với máy chủ</li>
+                  <li>Thiết bị sẽ xuất hiện trên bảng điều khiển trong 1-2 phút</li>
+                  <li>Kết nối lại điện thoại/máy tính với WiFi nhà bạn</li>
                 </ol>
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-blue-700 text-sm">
-                  <strong>Remember:</strong> Reconnect to your home WiFi network to access the dashboard.
+                  <strong>Lưu ý:</strong> Kết nối lại với mạng WiFi nhà để truy cập bảng điều khiển.
                 </p>
               </div>
 
@@ -333,7 +373,7 @@ export function AddDevice() {
                 to="/"
                 className="inline-block w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
               >
-                Go to Dashboard
+                Đi đến Bảng điều khiển
               </Link>
             </div>
           )}

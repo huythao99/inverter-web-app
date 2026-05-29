@@ -33,7 +33,7 @@ export function Login() {
       setError('');
       await signInWithGoogle();
     } catch (error: any) {
-      setError(error.message || 'Failed to sign in with Google');
+      setError(error.message || 'Đăng nhập bằng Google thất bại');
     }
   };
 
@@ -47,15 +47,15 @@ export function Login() {
     } catch (error: any) {
       const errorCode = error.code;
       if (errorCode === 'auth/user-not-found') {
-        setError('No account found with this email');
+        setError('Không tìm thấy tài khoản với email này');
       } else if (errorCode === 'auth/wrong-password') {
-        setError('Incorrect password');
+        setError('Mật khẩu không đúng');
       } else if (errorCode === 'auth/invalid-email') {
-        setError('Invalid email address');
+        setError('Địa chỉ email không hợp lệ');
       } else if (errorCode === 'auth/invalid-credential') {
-        setError('Invalid email or password');
+        setError('Email hoặc mật khẩu không đúng');
       } else {
-        setError(error.message || 'Failed to sign in');
+        setError(error.message || 'Đăng nhập thất bại');
       }
     } finally {
       setIsSubmitting(false);
@@ -67,12 +67,33 @@ export function Login() {
     setError('');
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError('Mật khẩu xác nhận không khớp');
       return;
     }
 
+    // Password strength validation
     if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setError('Mật khẩu phải có ít nhất 6 ký tự');
+      return;
+    }
+
+    if (!/[A-Z]/.test(password)) {
+      setError('Mật khẩu phải chứa ít nhất một chữ in hoa');
+      return;
+    }
+
+    if (!/[a-z]/.test(password)) {
+      setError('Mật khẩu phải chứa ít nhất một chữ thường');
+      return;
+    }
+
+    if (!/[0-9]/.test(password)) {
+      setError('Mật khẩu phải chứa ít nhất một chữ số');
+      return;
+    }
+
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      setError('Mật khẩu phải chứa ít nhất một ký tự đặc biệt (!@#$%^&*(),.?":{}|<>)');
       return;
     }
 
@@ -83,13 +104,13 @@ export function Login() {
     } catch (error: any) {
       const errorCode = error.code;
       if (errorCode === 'auth/email-already-in-use') {
-        setError('An account with this email already exists');
+        setError('Email này đã được sử dụng cho tài khoản khác');
       } else if (errorCode === 'auth/invalid-email') {
-        setError('Invalid email address');
+        setError('Địa chỉ email không hợp lệ');
       } else if (errorCode === 'auth/weak-password') {
-        setError('Password is too weak');
+        setError('Mật khẩu quá yếu');
       } else {
-        setError(error.message || 'Failed to create account');
+        setError(error.message || 'Tạo tài khoản thất bại');
       }
     } finally {
       setIsSubmitting(false);
@@ -104,15 +125,15 @@ export function Login() {
 
     try {
       await resetPassword(email);
-      setSuccess('Password reset email sent! Check your inbox.');
+      setSuccess('Email đặt lại mật khẩu đã được gửi! Vui lòng kiểm tra hộp thư của bạn.');
     } catch (error: any) {
       const errorCode = error.code;
       if (errorCode === 'auth/user-not-found') {
-        setError('No account found with this email');
+        setError('Không tìm thấy tài khoản với email này');
       } else if (errorCode === 'auth/invalid-email') {
-        setError('Invalid email address');
+        setError('Địa chỉ email không hợp lệ');
       } else {
-        setError(error.message || 'Failed to send reset email');
+        setError(error.message || 'Gửi email đặt lại mật khẩu thất bại');
       }
     } finally {
       setIsSubmitting(false);
@@ -154,9 +175,9 @@ export function Login() {
               Giabao Inverter
             </h1>
             <p className="text-gray-500 mt-2 text-center text-sm">
-              {mode === 'login' && 'Sign in to manage your devices'}
-              {mode === 'register' && 'Create a new account'}
-              {mode === 'forgot-password' && 'Reset your password'}
+              {mode === 'login' && 'Đăng nhập để quản lý thiết bị của bạn'}
+              {mode === 'register' && 'Tạo tài khoản mới'}
+              {mode === 'forgot-password' && 'Đặt lại mật khẩu'}
             </p>
           </div>
 
@@ -167,7 +188,7 @@ export function Login() {
               className="flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4"
             >
               <ArrowLeft className="w-4 h-4 mr-1" />
-              Back to login
+              Quay lại đăng nhập
             </button>
           )}
 
@@ -198,7 +219,7 @@ export function Login() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter your email"
+                      placeholder="Nhập email của bạn"
                       required
                     />
                   </div>
@@ -206,7 +227,7 @@ export function Login() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Password
+                    Mật khẩu
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -215,7 +236,7 @@ export function Login() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter your password"
+                      placeholder="Nhập mật khẩu của bạn"
                       required
                     />
                   </div>
@@ -227,7 +248,7 @@ export function Login() {
                     onClick={() => switchMode('forgot-password')}
                     className="text-sm text-blue-600 hover:text-blue-800"
                   >
-                    Forgot password?
+                    Quên mật khẩu?
                   </button>
                 </div>
 
@@ -236,7 +257,7 @@ export function Login() {
                   disabled={isSubmitting}
                   className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center"
                 >
-                  {isSubmitting ? <LoadingSpinner size="sm" className="text-white" /> : 'Sign In'}
+                  {isSubmitting ? <LoadingSpinner size="sm" className="text-white" /> : 'Đăng nhập'}
                 </button>
               </form>
 
@@ -246,7 +267,7 @@ export function Login() {
                   <div className="w-full border-t border-gray-300"></div>
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">Or continue with</span>
+                  <span className="px-2 bg-white text-gray-500">Hoặc tiếp tục với</span>
                 </div>
               </div>
 
@@ -278,12 +299,12 @@ export function Login() {
 
               {/* Register Link */}
               <p className="text-center text-sm text-gray-600 mt-6">
-                Don't have an account?{' '}
+                Chưa có tài khoản?{' '}
                 <button
                   onClick={() => switchMode('register')}
                   className="text-blue-600 hover:text-blue-800 font-medium"
                 >
-                  Sign up
+                  Đăng ký
                 </button>
               </p>
             </>
@@ -295,7 +316,7 @@ export function Login() {
               <form onSubmit={handleEmailSignUp} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Name (optional)
+                    Tên (tùy chọn)
                   </label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -304,7 +325,7 @@ export function Login() {
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter your name"
+                      placeholder="Nhập tên của bạn"
                     />
                   </div>
                 </div>
@@ -320,7 +341,7 @@ export function Login() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter your email"
+                      placeholder="Nhập email của bạn"
                       required
                     />
                   </div>
@@ -328,7 +349,7 @@ export function Login() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Password
+                    Mật khẩu
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -337,7 +358,7 @@ export function Login() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Create a password"
+                      placeholder="Tạo mật khẩu"
                       required
                     />
                   </div>
@@ -345,7 +366,7 @@ export function Login() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Confirm Password
+                    Xác nhận mật khẩu
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -354,7 +375,7 @@ export function Login() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Confirm your password"
+                      placeholder="Xác nhận mật khẩu của bạn"
                       required
                     />
                   </div>
@@ -365,7 +386,7 @@ export function Login() {
                   disabled={isSubmitting}
                   className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center"
                 >
-                  {isSubmitting ? <LoadingSpinner size="sm" className="text-white" /> : 'Create Account'}
+                  {isSubmitting ? <LoadingSpinner size="sm" className="text-white" /> : 'Tạo tài khoản'}
                 </button>
               </form>
 
@@ -375,7 +396,7 @@ export function Login() {
                   <div className="w-full border-t border-gray-300"></div>
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">Or continue with</span>
+                  <span className="px-2 bg-white text-gray-500">Hoặc tiếp tục với</span>
                 </div>
               </div>
 
@@ -421,7 +442,7 @@ export function Login() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Enter your email"
+                    placeholder="Nhập email của bạn"
                     required
                   />
                 </div>
@@ -432,7 +453,7 @@ export function Login() {
                 disabled={isSubmitting}
                 className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center"
               >
-                {isSubmitting ? <LoadingSpinner size="sm" className="text-white" /> : 'Send Reset Link'}
+                {isSubmitting ? <LoadingSpinner size="sm" className="text-white" /> : 'Gửi liên kết đặt lại'}
               </button>
             </form>
           )}

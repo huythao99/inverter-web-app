@@ -14,6 +14,8 @@ import {
   Plug,
   Activity,
   TrendingUp,
+  Plus,
+  X,
 } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -566,6 +568,27 @@ function DataItem({ label, value }: { label: string; value: string }) {
   );
 }
 
+// Parse settings value: "XXXXYYYYM" -> { vBattUvp: XX.XX, pMaxDischarge: YYYY-1000 }
+function parseSettingsValue(value: string): { vBattUvp: number; pMaxDischarge: number } {
+  if (!value || value.length < 8) {
+    return { vBattUvp: 48, pMaxDischarge: 500 };
+  }
+  try {
+    const vBattUvp = parseFloat(value.substring(0, 4)) / 100;
+    const pMaxDischarge = parseInt(value.substring(4, 8)) - 1000;
+    return { vBattUvp, pMaxDischarge };
+  } catch {
+    return { vBattUvp: 48, pMaxDischarge: 500 };
+  }
+}
+
+// Format settings to string: { vBattUvp, pMaxDischarge } -> "XXXXYYYYM"
+function formatSettingsValue(vBattUvp: number, pMaxDischarge: number): string {
+  const vBattStr = Math.round(vBattUvp * 100).toString().padStart(4, '0');
+  const pMaxStr = (pMaxDischarge + 1000).toString().padStart(4, '0');
+  return `${vBattStr}${pMaxStr}`;
+}
+
 // Settings Tab Component
 function SettingsTab({
   value,
@@ -584,6 +607,51 @@ function SettingsTab({
   error: Error | null;
   onRetry: () => void;
 }) {
+  const [vBattUvp, setVBattUvp] = useState('48.00');
+  const [pMaxDischarge, setPMaxDischarge] = useState('500');
+  const [vBattError, setVBattError] = useState('');
+  const [pMaxError, setPMaxError] = useState('');
+
+  // Parse value when it changes
+  useEffect(() => {
+    if (value) {
+      const parsed = parseSettingsValue(value);
+      setVBattUvp(parsed.vBattUvp.toFixed(2));
+      setPMaxDischarge(parsed.pMaxDischarge.toString());
+    }
+  }, [value]);
+
+  const validateVBatt = (val: string): boolean => {
+    const num = parseFloat(val);
+    if (isNaN(num) || num < 10 || num > 99.99) {
+      setVBattError('Điện áp ngắt kích phải từ 10 đến 99.99');
+      return false;
+    }
+    setVBattError('');
+    return true;
+  };
+
+  const validatePMax = (val: string): boolean => {
+    const num = parseInt(val);
+    if (isNaN(num) || num <= 0 || num > 8999) {
+      setPMaxError('Công suất phải từ 1 đến 8999');
+      return false;
+    }
+    setPMaxError('');
+    return true;
+  };
+
+  const handleSave = () => {
+    const isVBattValid = validateVBatt(vBattUvp);
+    const isPMaxValid = validatePMax(pMaxDischarge);
+
+    if (isVBattValid && isPMaxValid) {
+      const newValue = formatSettingsValue(parseFloat(vBattUvp), parseInt(pMaxDischarge));
+      onChange(newValue);
+      onSave();
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
@@ -610,35 +678,181 @@ function SettingsTab({
   }
 
   return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-gray-900">Cài đặt thiết bị</h3>
-      <p className="text-sm text-gray-500">
-        Cấu hình cài đặt thiết bị. Các thay đổi sẽ được đồng bộ với thiết bị.
-      </p>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        rows={10}
-        className="w-full p-4 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        placeholder="Nhập cài đặt thiết bị..."
-      />
-      <div className="flex justify-end">
-        <button
-          onClick={onSave}
-          disabled={isSaving}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-        >
-          {isSaving ? (
-            <LoadingSpinner size="sm" className="text-white" />
-          ) : (
-            <Save className="w-4 h-4" />
+    <div className="space-y-6">
+      {/* Voltage Section */}
+      <div className="bg-gray-50 rounded-xl p-4 shadow-sm">
+        <h4 className="text-base font-semibold text-gray-900 mb-4">Điện áp</h4>
+        <div className="border-t border-gray-200 pt-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <Zap className="w-5 h-5 text-yellow-600" />
+              </div>
+              <span className="text-sm font-medium text-gray-700">Điện áp ngắt kích</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="number"
+                step="0.01"
+                min="10"
+                max="99.99"
+                value={vBattUvp}
+                onChange={(e) => {
+                  setVBattUvp(e.target.value);
+                  validateVBatt(e.target.value);
+                }}
+                className={`w-24 px-3 py-2 text-right border rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  vBattError ? 'border-red-500' : 'border-gray-300'
+                }`}
+              />
+              <span className="text-sm text-gray-500 w-8">(V)</span>
+            </div>
+          </div>
+          {vBattError && (
+            <p className="text-red-500 text-xs mt-2 text-right">{vBattError}</p>
           )}
-          <span>Lưu cài đặt</span>
-        </button>
+        </div>
       </div>
+
+      {/* Power Section */}
+      <div className="bg-gray-50 rounded-xl p-4 shadow-sm">
+        <h4 className="text-base font-semibold text-gray-900 mb-4">Công suất</h4>
+        <div className="border-t border-gray-200 pt-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Activity className="w-5 h-5 text-blue-600" />
+              </div>
+              <span className="text-sm font-medium text-gray-700">Công suất hoà tối đa</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="number"
+                step="1"
+                min="1"
+                max="8999"
+                value={pMaxDischarge}
+                onChange={(e) => {
+                  setPMaxDischarge(e.target.value);
+                  validatePMax(e.target.value);
+                }}
+                className={`w-24 px-3 py-2 text-right border rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  pMaxError ? 'border-red-500' : 'border-gray-300'
+                }`}
+              />
+              <span className="text-sm text-gray-500 w-8">(W)</span>
+            </div>
+          </div>
+          {pMaxError && (
+            <p className="text-red-500 text-xs mt-2 text-right">{pMaxError}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Save Button */}
+      <button
+        onClick={handleSave}
+        disabled={isSaving}
+        className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+      >
+        {isSaving ? (
+          <LoadingSpinner size="sm" className="text-white" />
+        ) : (
+          <>
+            <Save className="w-5 h-5" />
+            <span>Lưu</span>
+          </>
+        )}
+      </button>
     </div>
   );
 }
+
+// Schedule item interface
+interface ScheduleItem {
+  startTime: string; // HH:MM format
+  endTime: string;   // HH:MM format
+  vBattUvp: string;
+  pMaxDischarge: string;
+}
+
+// Parse schedule string: "start=HH:MM&end=HH:MM&value=XXXXXXXX#..."
+function parseScheduleValue(value: string): ScheduleItem[] {
+  if (!value) {
+    return [
+      { startTime: '08:00', endTime: '17:00', vBattUvp: '48.00', pMaxDischarge: '500' },
+      { startTime: '08:00', endTime: '17:00', vBattUvp: '48.00', pMaxDischarge: '500' },
+      { startTime: '08:00', endTime: '17:00', vBattUvp: '48.00', pMaxDischarge: '500' },
+    ];
+  }
+
+  try {
+    const schedules = value.split('#');
+    return schedules.map((schedule) => {
+      const params: Record<string, string> = {};
+      schedule.split('&').forEach((param) => {
+        const [key, val] = param.split('=');
+        if (key && val) params[key] = val;
+      });
+
+      // Parse start time (convert from UTC to local +7)
+      let startTime = '08:00';
+      if (params.start) {
+        const [h, m] = params.start.split(':').map(Number);
+        const localH = (h + 7) % 24;
+        startTime = `${localH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+      }
+
+      // Parse end time (convert from UTC to local +7)
+      let endTime = '17:00';
+      if (params.end) {
+        const [h, m] = params.end.split(':').map(Number);
+        const localH = (h + 7) % 24;
+        endTime = `${localH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+      }
+
+      // Parse value (first 4 digits = vBatt * 100, last 4 digits = pMax + 1000)
+      let vBattUvp = '48.00';
+      let pMaxDischarge = '500';
+      if (params.value && params.value.length >= 8) {
+        vBattUvp = (parseFloat(params.value.substring(0, 4)) / 100).toFixed(2);
+        pMaxDischarge = (parseInt(params.value.substring(4, 8)) - 1000).toString();
+      }
+
+      return { startTime, endTime, vBattUvp, pMaxDischarge };
+    });
+  } catch {
+    return [
+      { startTime: '08:00', endTime: '17:00', vBattUvp: '48.00', pMaxDischarge: '500' },
+      { startTime: '08:00', endTime: '17:00', vBattUvp: '48.00', pMaxDischarge: '500' },
+      { startTime: '08:00', endTime: '17:00', vBattUvp: '48.00', pMaxDischarge: '500' },
+    ];
+  }
+}
+
+// Format schedules to string
+function formatScheduleValue(schedules: ScheduleItem[]): string {
+  return schedules.map((schedule) => {
+    // Convert local time to UTC (-7)
+    const [startH, startM] = schedule.startTime.split(':').map(Number);
+    const [endH, endM] = schedule.endTime.split(':').map(Number);
+
+    const utcStartH = (startH - 7 + 24) % 24;
+    const utcEndH = (endH - 7 + 24) % 24;
+
+    const startStr = `${utcStartH.toString().padStart(2, '0')}:${startM.toString().padStart(2, '0')}`;
+    const endStr = `${utcEndH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+
+    // Format value
+    const vBatt = Math.round(parseFloat(schedule.vBattUvp) * 100).toString().padStart(4, '0');
+    const pMax = (parseInt(schedule.pMaxDischarge) + 1000).toString().padStart(4, '0');
+
+    return `start=${startStr}&end=${endStr}&value=${vBatt}${pMax}`;
+  }).join('#');
+}
+
+const MIN_SCHEDULES = 3;
+const MAX_SCHEDULES = 10;
 
 // Schedule Tab Component
 function ScheduleTab({
@@ -658,6 +872,43 @@ function ScheduleTab({
   error: Error | null;
   onRetry: () => void;
 }) {
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+
+  // Parse value when it changes
+  useEffect(() => {
+    const parsed = parseScheduleValue(value);
+    // Ensure minimum 3 schedules
+    while (parsed.length < MIN_SCHEDULES) {
+      parsed.push({ startTime: '08:00', endTime: '17:00', vBattUvp: '48.00', pMaxDischarge: '500' });
+    }
+    setSchedules(parsed);
+  }, [value]);
+
+  const updateSchedule = (index: number, field: keyof ScheduleItem, newValue: string) => {
+    const newSchedules = [...schedules];
+    newSchedules[index] = { ...newSchedules[index], [field]: newValue };
+    setSchedules(newSchedules);
+  };
+
+  const addSchedule = () => {
+    if (schedules.length < MAX_SCHEDULES) {
+      setSchedules([...schedules, { startTime: '08:00', endTime: '17:00', vBattUvp: '48.00', pMaxDischarge: '500' }]);
+    }
+  };
+
+  const removeSchedule = (index: number) => {
+    if (schedules.length > MIN_SCHEDULES) {
+      const newSchedules = schedules.filter((_, i) => i !== index);
+      setSchedules(newSchedules);
+    }
+  };
+
+  const handleSave = () => {
+    const newValue = formatScheduleValue(schedules);
+    onChange(newValue);
+    onSave();
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
@@ -669,9 +920,9 @@ function ScheduleTab({
   if (error) {
     return (
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-gray-900">Lịch trình thiết bị</h3>
+        <h3 className="text-lg font-semibold text-gray-900">Lịch xả</h3>
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
-          <p className="text-red-600">Không thể tải lịch trình thiết bị</p>
+          <p className="text-red-600">Không thể tải lịch xả</p>
           <button
             onClick={onRetry}
             className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
@@ -685,31 +936,121 @@ function ScheduleTab({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-gray-900">Lịch trình thiết bị</h3>
-      <p className="text-sm text-gray-500">
-        Thiết lập lịch trình hoạt động cho thiết bị của bạn.
-      </p>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        rows={10}
-        className="w-full p-4 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        placeholder="Nhập lịch trình thiết bị..."
-      />
-      <div className="flex justify-end">
+      {/* Schedule Cards */}
+      {schedules.map((schedule, index) => (
+        <div key={index} className="bg-gray-50 rounded-xl p-4 shadow-sm">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-base font-semibold text-gray-900">Lịch xả {index + 1}</h4>
+            {schedules.length > MIN_SCHEDULES && (
+              <button
+                onClick={() => removeSchedule(index)}
+                className="p-1.5 bg-red-100 rounded-lg hover:bg-red-200 transition-colors"
+              >
+                <X className="w-4 h-4 text-red-600" />
+              </button>
+            )}
+          </div>
+
+          <div className="border-t border-gray-200 pt-4 space-y-4">
+            {/* Voltage */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-yellow-100 rounded-lg">
+                  <Zap className="w-4 h-4 text-yellow-600" />
+                </div>
+                <span className="text-sm font-medium text-gray-700">Điện áp ngắt</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="10"
+                  max="99.99"
+                  value={schedule.vBattUvp}
+                  onChange={(e) => updateSchedule(index, 'vBattUvp', e.target.value)}
+                  className="w-20 px-2 py-1.5 text-right border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <span className="text-sm text-gray-500 w-6">(V)</span>
+              </div>
+            </div>
+
+            {/* Power */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Activity className="w-4 h-4 text-blue-600" />
+                </div>
+                <span className="text-sm font-medium text-gray-700">Công suất hoà tối đa</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="number"
+                  step="1"
+                  min="1"
+                  max="8999"
+                  value={schedule.pMaxDischarge}
+                  onChange={(e) => updateSchedule(index, 'pMaxDischarge', e.target.value)}
+                  className="w-20 px-2 py-1.5 text-right border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <span className="text-sm text-gray-500 w-6">(W)</span>
+              </div>
+            </div>
+
+            {/* Time Range */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <Clock className="w-4 h-4 text-green-600" />
+                </div>
+                <span className="text-sm font-medium text-gray-700">Thời gian</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="time"
+                  value={schedule.startTime}
+                  onChange={(e) => updateSchedule(index, 'startTime', e.target.value)}
+                  className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <span className="text-gray-400">-</span>
+                <input
+                  type="time"
+                  value={schedule.endTime}
+                  onChange={(e) => updateSchedule(index, 'endTime', e.target.value)}
+                  className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {/* Add Schedule Button */}
+      {schedules.length < MAX_SCHEDULES && (
         <button
-          onClick={onSave}
-          disabled={isSaving}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          onClick={addSchedule}
+          className="w-full py-3 border-2 border-dashed border-blue-300 rounded-xl text-blue-600 font-medium hover:bg-blue-50 transition-colors flex items-center justify-center space-x-2"
         >
-          {isSaving ? (
-            <LoadingSpinner size="sm" className="text-white" />
-          ) : (
-            <Save className="w-4 h-4" />
-          )}
-          <span>Lưu lịch trình</span>
+          <Plus className="w-5 h-5" />
+          <span>Thêm lịch xả</span>
         </button>
-      </div>
+      )}
+
+      {/* Save Button */}
+      <button
+        onClick={handleSave}
+        disabled={isSaving}
+        className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+      >
+        {isSaving ? (
+          <LoadingSpinner size="sm" className="text-white" />
+        ) : (
+          <>
+            <Save className="w-5 h-5" />
+            <span>Lưu</span>
+          </>
+        )}
+      </button>
     </div>
   );
 }

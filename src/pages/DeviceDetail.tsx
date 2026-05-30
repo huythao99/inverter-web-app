@@ -308,7 +308,7 @@ export function DeviceDetail() {
             <SettingsTab
               value={settingsValue}
               onChange={setSettingsValue}
-              onSave={() => updateSettingsMutation.mutate(settingsValue)}
+              onSave={(val) => updateSettingsMutation.mutate(val)}
               isLoading={settingsQuery.isLoading || settingsQuery.isFetching}
               isSaving={updateSettingsMutation.isPending}
               error={settingsQuery.error}
@@ -325,7 +325,7 @@ export function DeviceDetail() {
             <ScheduleTab
               value={scheduleValue}
               onChange={setScheduleValue}
-              onSave={() => updateScheduleMutation.mutate(scheduleValue)}
+              onSave={(val) => updateScheduleMutation.mutate(val)}
               isLoading={scheduleQuery.isLoading || scheduleQuery.isFetching}
               isSaving={updateScheduleMutation.isPending}
               error={scheduleQuery.error}
@@ -777,7 +777,7 @@ function SettingsTab({
 }: {
   value: string;
   onChange: (value: string) => void;
-  onSave: () => void;
+  onSave: (value: string) => void;
   isLoading: boolean;
   isSaving: boolean;
   error: Error | null;
@@ -833,7 +833,7 @@ function SettingsTab({
     if (isVBattValid && isPMaxValid) {
       const newValue = formatSettingsValue(parseFloat(vBattUvp), parseInt(pMaxDischarge));
       onChange(newValue);
-      onSave();
+      onSave(newValue);
     }
   };
 
@@ -1134,7 +1134,7 @@ function ScheduleTab({
 }: {
   value: string;
   onChange: (value: string) => void;
-  onSave: () => void;
+  onSave: (value: string) => void;
   isLoading: boolean;
   isSaving: boolean;
   error: Error | null;
@@ -1174,7 +1174,7 @@ function ScheduleTab({
   const handleSave = () => {
     const newValue = formatScheduleValue(schedules);
     onChange(newValue);
-    onSave();
+    onSave(newValue);
   };
 
   if (isLoading) {

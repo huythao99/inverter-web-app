@@ -17,24 +17,10 @@ import { useAuth } from '../contexts/AuthContext';
 
 type SetupStep = 1 | 2 | 3;
 
-// HTTP port for iOS Safari (to bypass mixed content blocking)
-const HTTP_PORT = 8080;
-
 export function AddDevice() {
   const { user } = useAuth();
   const [copied, setCopied] = useState(false);
   const [currentStep, setCurrentStep] = useState<SetupStep>(1);
-
-  // Detect iOS and redirect to HTTP if on HTTPS
-  // iOS Safari blocks HTTP requests from HTTPS pages (mixed content)
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const isHTTPS = window.location.protocol === 'https:';
-
-  if (isIOS && isHTTPS) {
-    const httpUrl = `http://${window.location.hostname}:${HTTP_PORT}${window.location.pathname}`;
-    window.location.href = httpUrl;
-    return null;
-  }
   const [wifiSsid, setWifiSsid] = useState('');
   const [wifiPassword, setWifiPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

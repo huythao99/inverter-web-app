@@ -10,7 +10,6 @@ import {
   RefreshCw,
   Zap,
   Battery,
-  Sun,
   Plug,
   Activity,
   TrendingUp,
@@ -30,6 +29,7 @@ import {
   getDeviceSchedule,
   getLatestDeviceData,
   getDeviceMonthlyTotals,
+  calculateDailyTotals,
   updateDeviceSettings,
   updateDeviceSchedule,
   updateDevice,
@@ -96,6 +96,12 @@ export function DeviceDetail() {
   const monthlyTotalsQuery = useQuery({
     queryKey: ['device-monthly-totals', deviceId],
     queryFn: () => getDeviceMonthlyTotals(deviceId!),
+    enabled: !!deviceId && activeTab === 'overview',
+  });
+
+  const dailyTotalsQuery = useQuery({
+    queryKey: ['device-daily-totals', deviceId],
+    queryFn: () => calculateDailyTotals(deviceId!),
     enabled: !!deviceId && activeTab === 'overview',
   });
 
@@ -295,10 +301,12 @@ export function DeviceDetail() {
             <OverviewTab
               latestData={latestDataQuery.data}
               monthlyTotals={monthlyTotalsQuery.data}
-              isLoading={latestDataQuery.isLoading || monthlyTotalsQuery.isLoading}
+              dailyTotals={dailyTotalsQuery.data}
+              isLoading={latestDataQuery.isLoading || monthlyTotalsQuery.isLoading || dailyTotalsQuery.isLoading}
               onRefresh={() => {
                 latestDataQuery.refetch();
                 monthlyTotalsQuery.refetch();
+                dailyTotalsQuery.refetch();
               }}
               isRefreshing={latestDataQuery.isRefetching}
             />
@@ -338,32 +346,26 @@ export function DeviceDetail() {
   );
 }
 
-// Parse inverter value string - format: field1#field2#...#totalA#totalA2
+// Parse inverter value string - format based on mobile app (8 fields)
+// data[0]=vAC, data[1]=fHZ, data[2]=p, data[3]=vBat, data[4]=energy,
+// data[5]=mostphesTemp, data[6]=vBattUvpSetReal, data[7]=pMaxDischargeSetReal
 interface ParsedInverterData {
   // Grid parameters
-  gridVoltage: number;
-  gridCurrent: number;
-  gridPower: number;
-  gridFrequency: number;
+  gridVoltage: number;      // data[0] - vAC
+  gridFrequency: number;    // data[1] - fHZ
+  gridPower: number;        // data[2] - p (lấy lưới)
   // Battery parameters
-  batteryVoltage: number;
-  batteryCurrent: number;
-  batteryPower: number;
-  batterySoc: number;
-  // PV/Solar parameters
-  pvVoltage: number;
-  pvCurrent: number;
-  pvPower: number;
-  // Load parameters
-  loadPower: number;
-  loadPercent: number;
+  batteryVoltage: number;   // data[3] - vBat
+  energy: number;           // data[4] - công suất hoà lưới
   // Temperature
-  temperature: number;
-  // Operating mode
-  operatingMode: number;
-  // Totals (raw values, need to divide by 1000000)
-  totalA: number;
-  totalA2: number;
+  temperature: number;      // data[5] - mostphesTemp
+  // Settings (real values from device)
+  vBattUvpSetReal: number;  // data[6]
+  pMaxDischargeSetReal: number; // data[7]
+  // Calculated values (matching mobile app)
+  batteryPower: number;     // energy / 0.94 (Công suất ắc quy)
+  consumption: number;      // gridPower + energy (Tiêu thụ)
+  dischargeCurrent: number; // batteryPower / batteryVoltage
   // Raw parts for debugging
   rawParts: string[];
 }
@@ -371,29 +373,35 @@ interface ParsedInverterData {
 function parseInverterValue(value: string): ParsedInverterData | null {
   if (!value) return null;
 
-  const parts = value.split('#');
-  if (parts.length < 10) return null;
+  const parts = value.replace(/\$/g, '').split('#');
+  if (parts.length < 8) return null;
 
-  // Parse based on typical inverter data format
-  // This mapping may need adjustment based on actual device protocol
+  const gridVoltage = parseFloat(parts[0]) || 0;
+  const gridFrequency = parseFloat(parts[1]) || 0;
+  const gridPower = parseFloat(parts[2]) || 0;
+  const batteryVoltage = parseFloat(parts[3]) || 0;
+  const energy = parseFloat(parts[4]) || 0;
+  const temperature = parseFloat(parts[5]) || 0;
+  const vBattUvpSetReal = parseFloat(parts[6]) || 0;
+  const pMaxDischargeSetReal = parseFloat(parts[7]) || 0;
+
+  // Calculated values (matching mobile app logic)
+  const batteryPower = energy / 0.94; // Công suất ắc quy
+  const consumption = gridPower + energy; // Tiêu thụ
+  const dischargeCurrent = batteryVoltage > 0 ? batteryPower / batteryVoltage : 0;
+
   return {
-    gridVoltage: parseFloat(parts[0]) || 0,
-    gridCurrent: parseFloat(parts[1]) || 0,
-    gridPower: parseFloat(parts[2]) || 0,
-    gridFrequency: parseFloat(parts[3]) || 0,
-    batteryVoltage: parseFloat(parts[4]) || 0,
-    batteryCurrent: parseFloat(parts[5]) || 0,
-    batteryPower: parseFloat(parts[6]) || 0,
-    batterySoc: parseFloat(parts[7]) || 0,
-    pvVoltage: parseFloat(parts[8]) || 0,
-    pvCurrent: parseFloat(parts[9]) || 0,
-    pvPower: parseFloat(parts[10]) || 0,
-    loadPower: parseFloat(parts[11]) || 0,
-    loadPercent: parseFloat(parts[12]) || 0,
-    temperature: parseFloat(parts[13]) || 0,
-    operatingMode: parseFloat(parts[14]) || 0,
-    totalA: (parseFloat(parts[parts.length - 2]) || 0) / 1000000,
-    totalA2: (parseFloat(parts[parts.length - 1]) || 0) / 1000000,
+    gridVoltage,
+    gridFrequency,
+    gridPower,
+    batteryVoltage,
+    energy,
+    temperature,
+    vBattUvpSetReal,
+    pMaxDischargeSetReal,
+    batteryPower,
+    consumption,
+    dischargeCurrent,
     rawParts: parts,
   };
 }
@@ -402,12 +410,14 @@ function parseInverterValue(value: string): ParsedInverterData | null {
 function OverviewTab({
   latestData,
   monthlyTotals,
+  dailyTotals,
   isLoading,
   onRefresh,
   isRefreshing,
 }: {
   latestData: any;
   monthlyTotals: any;
+  dailyTotals: { totalA: number; totalA2: number } | undefined;
   isLoading: boolean;
   onRefresh: () => void;
   isRefreshing: boolean;
@@ -442,29 +452,29 @@ function OverviewTab({
           {/* Main Stats - Primary metrics */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatCard
-              icon={Sun}
-              label="Pin mặt trời"
-              value={`${parsedData.pvPower.toFixed(0)} W`}
-              subValue={`${parsedData.pvVoltage.toFixed(1)}V / ${parsedData.pvCurrent.toFixed(1)}A`}
+              icon={Battery}
+              label="Công suất ắc quy"
+              value={`${parsedData.batteryPower.toFixed(0)} W`}
+              subValue={`${parsedData.batteryVoltage.toFixed(1)}V / ${parsedData.dischargeCurrent.toFixed(2)}A`}
               color="yellow"
             />
             <StatCard
-              icon={Battery}
-              label="Ắc quy"
-              value={`${parsedData.batterySoc.toFixed(0)}%`}
-              subValue={`${parsedData.batteryVoltage.toFixed(1)}V / ${parsedData.batteryPower.toFixed(0)}W`}
+              icon={Zap}
+              label="Công suất hoà lưới"
+              value={`${parsedData.energy.toFixed(0)} W`}
+              subValue={`${parsedData.gridVoltage.toFixed(1)}V / ${parsedData.gridFrequency.toFixed(1)}Hz`}
               color="green"
             />
             <StatCard
               icon={Plug}
-              label="Tải"
-              value={`${parsedData.loadPower.toFixed(0)} W`}
-              subValue={`${parsedData.loadPercent.toFixed(0)}% công suất`}
+              label="Tiêu thụ"
+              value={`${parsedData.consumption.toFixed(0)} W`}
+              subValue="Lấy lưới + Hoà lưới"
               color="blue"
             />
             <StatCard
-              icon={Zap}
-              label="Lưới điện"
+              icon={Activity}
+              label="Lấy lưới"
               value={`${parsedData.gridPower.toFixed(0)} W`}
               subValue={`${parsedData.gridVoltage.toFixed(1)}V / ${parsedData.gridFrequency.toFixed(1)}Hz`}
               color="purple"
@@ -475,54 +485,41 @@ function OverviewTab({
           <div className="space-y-4">
             <h4 className="text-md font-semibold text-gray-700">Thông số chi tiết</h4>
 
+            {/* Battery Section */}
+            <div className="bg-yellow-50 rounded-lg p-4">
+              <h5 className="text-sm font-medium text-yellow-700 mb-3 flex items-center">
+                <Battery className="w-4 h-4 mr-2" /> Thông số ắc quy
+              </h5>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <DataItem label="Điện áp" value={`${parsedData.batteryVoltage.toFixed(1)} V`} />
+                <DataItem label="Dòng điện xả" value={`${parsedData.dischargeCurrent.toFixed(2)} A`} />
+                <DataItem label="Công suất xả" value={`${(parsedData.batteryPower).toFixed(0)} W`} />
+                <DataItem label="Công suất hoà lưới" value={`${parsedData.energy.toFixed(0)} W`} />
+              </div>
+            </div>
+
             {/* Grid Section */}
             <div className="bg-gray-50 rounded-lg p-4">
               <h5 className="text-sm font-medium text-gray-600 mb-3 flex items-center">
                 <Zap className="w-4 h-4 mr-2" /> Thông số lưới điện
               </h5>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <DataItem label="Điện áp" value={`${parsedData.gridVoltage.toFixed(1)} V`} />
-                <DataItem label="Dòng điện" value={`${parsedData.gridCurrent.toFixed(2)} A`} />
-                <DataItem label="Công suất" value={`${parsedData.gridPower.toFixed(0)} W`} />
-                <DataItem label="Tần số" value={`${parsedData.gridFrequency.toFixed(2)} Hz`} />
-              </div>
-            </div>
-
-            {/* Battery Section */}
-            <div className="bg-green-50 rounded-lg p-4">
-              <h5 className="text-sm font-medium text-green-700 mb-3 flex items-center">
-                <Battery className="w-4 h-4 mr-2" /> Thông số ắc quy
-              </h5>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <DataItem label="Điện áp" value={`${parsedData.batteryVoltage.toFixed(1)} V`} />
-                <DataItem label="Dòng điện" value={`${parsedData.batteryCurrent.toFixed(2)} A`} />
-                <DataItem label="Công suất" value={`${parsedData.batteryPower.toFixed(0)} W`} />
-                <DataItem label="Dung lượng" value={`${parsedData.batterySoc.toFixed(0)} %`} />
-              </div>
-            </div>
-
-            {/* PV/Solar Section */}
-            <div className="bg-yellow-50 rounded-lg p-4">
-              <h5 className="text-sm font-medium text-yellow-700 mb-3 flex items-center">
-                <Sun className="w-4 h-4 mr-2" /> Thông số pin mặt trời
-              </h5>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <DataItem label="Điện áp" value={`${parsedData.pvVoltage.toFixed(1)} V`} />
-                <DataItem label="Dòng điện" value={`${parsedData.pvCurrent.toFixed(2)} A`} />
-                <DataItem label="Công suất" value={`${parsedData.pvPower.toFixed(0)} W`} />
+                <DataItem label="Điện áp" value={`${parsedData.gridVoltage.toFixed(1)} V`} />
+                <DataItem label="Tần số" value={`${parsedData.gridFrequency.toFixed(2)} Hz`} />
+                <DataItem label="Lấy lưới" value={`${parsedData.gridPower.toFixed(0)} W`} />
               </div>
             </div>
 
-            {/* Load & System Section */}
+            {/* Consumption & System Section */}
             <div className="bg-blue-50 rounded-lg p-4">
               <h5 className="text-sm font-medium text-blue-700 mb-3 flex items-center">
-                <Activity className="w-4 h-4 mr-2" /> Tải & Hệ thống
+                <Activity className="w-4 h-4 mr-2" /> Tiêu thụ & Hệ thống
               </h5>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <DataItem label="Công suất tải" value={`${parsedData.loadPower.toFixed(0)} W`} />
-                <DataItem label="Phần trăm tải" value={`${parsedData.loadPercent.toFixed(0)} %`} />
-                <DataItem label="Nhiệt độ" value={`${parsedData.temperature.toFixed(1)} °C`} />
-                <DataItem label="Chế độ" value={`${parsedData.operatingMode}`} />
+                <DataItem label="Tiêu thụ" value={`${parsedData.consumption.toFixed(0)} W`} />
+                <DataItem label="Nhiệt độ Mosfet" value={`${parsedData.temperature.toFixed(1)} °C`} />
+                <DataItem label="Điện áp ngắt" value={`${parsedData.vBattUvpSetReal.toFixed(2)} V`} />
+                <DataItem label="Công suất giới hạn" value={`${parsedData.pMaxDischargeSetReal.toFixed(0)} W`} />
               </div>
             </div>
 
@@ -532,8 +529,8 @@ function OverviewTab({
                 <TrendingUp className="w-4 h-4 mr-2" /> Tổng năng lượng
               </h5>
               <div className="grid grid-cols-2 gap-4">
-                <DataItem label="Tổng A (Sản xuất)" value={`${parsedData.totalA.toFixed(4)} kWh`} />
-                <DataItem label="Tổng A2 (Tiêu thụ)" value={`${parsedData.totalA2.toFixed(4)} kWh`} />
+                <DataItem label="Năng lượng xả" value={`${(dailyTotals?.totalA ?? 0).toFixed(2)} kWh`} />
+                <DataItem label="Lấy lưới tổng" value={`${(dailyTotals?.totalA2 ?? 0).toFixed(2)} kWh`} />
               </div>
             </div>
           </div>
@@ -729,7 +726,7 @@ function formatSettingsValue(vBattUvp: number, pMaxDischarge: number): string {
 function parseRealTimeSettings(value: string): { vBattReal: number; pMaxReal: number } {
   if (!value) return { vBattReal: 0, pMaxReal: 0 };
   try {
-    const parts = value.split('#');
+    const parts = value.replace(/\$/g, '').split('#');
     // Based on mobile app: data[6] = vBattUvpSetReal, data[7] = pMaxDischargeSetReal
     return {
       vBattReal: parseFloat(parts[6]) || 0,

@@ -12,6 +12,8 @@ import type {
   ChartDataPoint,
 } from '../types';
 
+// In dev mode, use relative URL so Vite proxy can forward to VITE_API_URL
+// In production, use VITE_API_URL directly
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 const api = axios.create({
@@ -166,6 +168,14 @@ export const getDeviceChartData = async (
   const response = await api.get(`/devices/${deviceId}/chart-data`, {
     params: { year, month },
   });
+  return response.data;
+};
+
+// Calculate Daily Totals (like mobile app)
+export const calculateDailyTotals = async (
+  deviceId: string
+): Promise<{ totalA: number; totalA2: number }> => {
+  const response = await api.get(`/devices/${deviceId}/calculate-daily-totals`);
   return response.data;
 };
 

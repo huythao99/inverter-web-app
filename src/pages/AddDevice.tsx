@@ -119,9 +119,26 @@ export function AddDevice() {
 
     const esp32Url = `http://${ESP32_IP}/wifi?${queryParams.toString()}`;
 
-    // Safari blocks mixed content (HTTPS -> HTTP fetch), use window.open instead
+    // Safari blocks mixed content (HTTPS -> HTTP fetch), use hidden form submission
     if (isSafari) {
-      window.open(esp32Url, '_blank');
+      const form = document.createElement('form');
+      form.method = 'GET';
+      form.action = `http://${ESP32_IP}/wifi`;
+      form.target = '_blank';
+
+      const fields = { ssid: wifiSsid.trim(), password: wifiPassword, uid: userId };
+      Object.entries(fields).forEach(([key, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+      });
+
+      document.body.appendChild(form);
+      form.submit();
+      document.body.removeChild(form);
+
       setSubmitStatus('success');
       setCurrentStep(3);
       return;

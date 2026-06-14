@@ -70,6 +70,8 @@ export function AddDevice() {
 
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
   const checkWifiStatus = async (): Promise<string | null> => {
     try {
       const response = await fetch(`http://${ESP32_IP}/wifi-status`, {
@@ -108,16 +110,26 @@ export function AddDevice() {
       return;
     }
 
+    // Build query parameters (matching Flutter app)
+    const queryParams = new URLSearchParams({
+      ssid: wifiSsid.trim(),
+      password: wifiPassword,
+      uid: userId,
+    });
+
+    const esp32Url = `http://${ESP32_IP}/wifi?${queryParams.toString()}`;
+
+    // Safari blocks mixed content (HTTPS -> HTTP fetch), use window.open instead
+    if (isSafari) {
+      window.open(esp32Url, '_blank');
+      setSubmitStatus('success');
+      setCurrentStep(3);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      // Build query parameters (matching Flutter app)
-      const queryParams = new URLSearchParams({
-        ssid: wifiSsid.trim(),
-        password: wifiPassword,
-        uid: userId,
-      });
-
       // Create request body
       const bodyData = {
         ssid: wifiSsid.trim(),
@@ -126,7 +138,7 @@ export function AddDevice() {
       };
 
       // Post to ESP32's local IP with both query params and body (matching Flutter app)
-      await fetch(`http://${ESP32_IP}/wifi?${queryParams.toString()}`, {
+      await fetch(esp32Url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

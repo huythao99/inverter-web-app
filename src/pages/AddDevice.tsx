@@ -28,7 +28,6 @@ export function AddDevice() {
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [safariUrl, setSafariUrl] = useState('');
-  const [copiedUrl, setCopiedUrl] = useState(false);
 
   const userId = user?.uid || '';
 
@@ -42,14 +41,18 @@ export function AddDevice() {
     }
   };
 
-  const copySetupUrl = async () => {
-    try {
-      await navigator.clipboard.writeText(safariUrl);
-      setCopiedUrl(true);
-      setTimeout(() => setCopiedUrl(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
+  // iOS/Safari can't fetch http:// from an https:// page (mixed content).
+  // A form POST is a *navigation*, which is allowed, and it produces the POST
+  // method the firmware's /wifi route requires. Params stay in the action's
+  // query string because the firmware reads them via getParam() (query), not body.
+  const submitViaForm = (url: string) => {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = url;
+    form.target = '_blank';
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
   };
 
   const validateWifiCredentials = (): string | null => {
@@ -137,12 +140,12 @@ export function AddDevice() {
 
     const esp32Url = `http://${ESP32_IP}/wifi?${queryParams.toString()}`;
 
-    // iOS/Safari blocks HTTPS->HTTP requests (mixed content), and in-app
-    // navigations to http:// are unreliable inside a standalone PWA. The only
-    // reliable path is for the user to paste the URL into a fresh Safari tab.
+    // iOS/Safari blocks HTTPS->HTTP fetch (mixed content). The firmware's /wifi
+    // route is POST-only, so a pasted/clicked URL (GET) won't match. Submit a
+    // form POST (an allowed navigation) instead.
     if (needsManualSetup) {
+      submitViaForm(esp32Url);
       setSafariUrl(esp32Url);
-      setCopiedUrl(false);
       return;
     }
 
@@ -339,49 +342,20 @@ export function AddDevice() {
               {safariUrl && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
                   <p className="text-blue-800 font-medium">
-                    Safari trên iPhone/iPad không thể gửi cấu hình tự động. Vui lòng làm theo các bước sau:
+                    Đã gửi cấu hình tới thiết bị. Một tab mới sẽ hiển thị kết quả từ thiết bị.
                   </p>
                   <ol className="list-decimal list-inside space-y-1 text-blue-700 text-sm">
-                    <li>Nhấn <strong>"Sao chép liên kết"</strong> bên dưới</li>
-                    <li>Mở một <strong>tab Safari mới</strong></li>
-                    <li><strong>Dán</strong> liên kết vào thanh địa chỉ và nhấn Go</li>
-                    <li>Đợi thiết bị nhận cấu hình, rồi quay lại đây nhấn <strong>"Tôi đã hoàn tất"</strong></li>
+                    <li>Kiểm tra tab mới vừa mở — thiết bị sẽ báo đã nhận cấu hình</li>
+                    <li>Nếu không có tab nào mở ra, nhấn <strong>"Gửi lại cấu hình"</strong></li>
+                    <li>Sau đó quay lại đây và nhấn <strong>"Tôi đã hoàn tất"</strong></li>
                   </ol>
-
-                  <div className="flex items-center space-x-2">
-                    <code className="flex-1 bg-white border border-blue-300 rounded-lg px-3 py-2 text-xs font-mono break-all">
-                      {safariUrl}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={copySetupUrl}
-                      className="p-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0"
-                      title="Sao chép liên kết"
-                    >
-                      {copiedUrl ? (
-                        <Check className="w-5 h-5" />
-                      ) : (
-                        <Copy className="w-5 h-5" />
-                      )}
-                    </button>
-                  </div>
 
                   <button
                     type="button"
-                    onClick={copySetupUrl}
+                    onClick={() => submitViaForm(safariUrl)}
                     className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center"
                   >
-                    {copiedUrl ? (
-                      <>
-                        <Check className="w-5 h-5 mr-2" />
-                        Đã sao chép!
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-5 h-5 mr-2" />
-                        Sao chép liên kết
-                      </>
-                    )}
+                    Gửi lại cấu hình
                   </button>
 
                   <button

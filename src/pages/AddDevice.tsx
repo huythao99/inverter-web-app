@@ -27,6 +27,7 @@ export function AddDevice() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [safariUrl, setSafariUrl] = useState('');
 
   const userId = user?.uid || '';
 
@@ -119,28 +120,9 @@ export function AddDevice() {
 
     const esp32Url = `http://${ESP32_IP}/wifi?${queryParams.toString()}`;
 
-    // Safari blocks mixed content (HTTPS -> HTTP fetch), use hidden form submission
+    // Safari blocks mixed content - show manual link instead
     if (isSafari) {
-      const form = document.createElement('form');
-      form.method = 'GET';
-      form.action = `http://${ESP32_IP}/wifi`;
-      form.target = '_blank';
-
-      const fields = { ssid: wifiSsid.trim(), password: wifiPassword, uid: userId };
-      Object.entries(fields).forEach(([key, value]) => {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = key;
-        input.value = value;
-        form.appendChild(input);
-      });
-
-      document.body.appendChild(form);
-      form.submit();
-      document.body.removeChild(form);
-
-      setSubmitStatus('success');
-      setCurrentStep(3);
+      setSafariUrl(esp32Url);
       return;
     }
 
@@ -331,6 +313,32 @@ export function AddDevice() {
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
                   <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                   <p className="text-red-700 text-sm">{errorMessage}</p>
+                </div>
+              )}
+
+              {safariUrl && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                  <p className="text-blue-800 font-medium">
+                    Safari không hỗ trợ kết nối tự động. Vui lòng nhấn vào liên kết bên dưới:
+                  </p>
+                  <a
+                    href={safariUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full py-3 bg-blue-600 text-white rounded-lg font-medium text-center hover:bg-blue-700 transition-colors"
+                  >
+                    Mở trang cấu hình thiết bị
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSafariUrl('');
+                      setCurrentStep(3);
+                    }}
+                    className="w-full py-2 text-blue-600 text-sm hover:underline"
+                  >
+                    Tôi đã nhấn liên kết → Tiếp tục
+                  </button>
                 </div>
               )}
 

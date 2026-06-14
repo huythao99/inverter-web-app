@@ -28,6 +28,7 @@ export function AddDevice() {
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [safariUrl, setSafariUrl] = useState('');
+  const [copiedUrl, setCopiedUrl] = useState(false);
 
   const userId = user?.uid || '';
 
@@ -36,6 +37,16 @@ export function AddDevice() {
       await navigator.clipboard.writeText(userId);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  const copySetupUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(safariUrl);
+      setCopiedUrl(true);
+      setTimeout(() => setCopiedUrl(false), 2000);
     } catch (err) {
       console.error('Failed to copy:', err);
     }
@@ -72,6 +83,12 @@ export function AddDevice() {
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  // All iOS browsers are WebKit and enforce the same HTTPS->HTTP mixed-content block,
+  // so they all need the manual copy-link flow (not just desktop Safari).
+  const isIOS =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const needsManualSetup = isSafari || isIOS;
 
   const checkWifiStatus = async (): Promise<string | null> => {
     try {
@@ -120,9 +137,12 @@ export function AddDevice() {
 
     const esp32Url = `http://${ESP32_IP}/wifi?${queryParams.toString()}`;
 
-    // Safari blocks mixed content - show manual link instead
-    if (isSafari) {
+    // iOS/Safari blocks HTTPS->HTTP requests (mixed content), and in-app
+    // navigations to http:// are unreliable inside a standalone PWA. The only
+    // reliable path is for the user to paste the URL into a fresh Safari tab.
+    if (needsManualSetup) {
       setSafariUrl(esp32Url);
+      setCopiedUrl(false);
       return;
     }
 
@@ -319,25 +339,61 @@ export function AddDevice() {
               {safariUrl && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
                   <p className="text-blue-800 font-medium">
-                    Safari không hỗ trợ kết nối tự động. Vui lòng nhấn vào liên kết bên dưới:
+                    Safari trên iPhone/iPad không thể gửi cấu hình tự động. Vui lòng làm theo các bước sau:
                   </p>
-                  <a
-                    href={safariUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block w-full py-3 bg-blue-600 text-white rounded-lg font-medium text-center hover:bg-blue-700 transition-colors"
+                  <ol className="list-decimal list-inside space-y-1 text-blue-700 text-sm">
+                    <li>Nhấn <strong>"Sao chép liên kết"</strong> bên dưới</li>
+                    <li>Mở một <strong>tab Safari mới</strong></li>
+                    <li><strong>Dán</strong> liên kết vào thanh địa chỉ và nhấn Go</li>
+                    <li>Đợi thiết bị nhận cấu hình, rồi quay lại đây nhấn <strong>"Tôi đã hoàn tất"</strong></li>
+                  </ol>
+
+                  <div className="flex items-center space-x-2">
+                    <code className="flex-1 bg-white border border-blue-300 rounded-lg px-3 py-2 text-xs font-mono break-all">
+                      {safariUrl}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={copySetupUrl}
+                      className="p-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0"
+                      title="Sao chép liên kết"
+                    >
+                      {copiedUrl ? (
+                        <Check className="w-5 h-5" />
+                      ) : (
+                        <Copy className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={copySetupUrl}
+                    className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center"
                   >
-                    Mở trang cấu hình thiết bị
-                  </a>
+                    {copiedUrl ? (
+                      <>
+                        <Check className="w-5 h-5 mr-2" />
+                        Đã sao chép!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-5 h-5 mr-2" />
+                        Sao chép liên kết
+                      </>
+                    )}
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => {
                       setSafariUrl('');
+                      setSubmitStatus('success');
                       setCurrentStep(3);
                     }}
                     className="w-full py-2 text-blue-600 text-sm hover:underline"
                   >
-                    Tôi đã nhấn liên kết → Tiếp tục
+                    Tôi đã hoàn tất → Tiếp tục
                   </button>
                 </div>
               )}

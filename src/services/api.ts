@@ -10,6 +10,7 @@ import type {
   PaginatedResponse,
   MonthlyTotals,
   ChartDataPoint,
+  GridTieStatus,
 } from '../types';
 
 // In dev mode, use relative URL so Vite proxy can forward to VITE_API_URL
@@ -91,6 +92,22 @@ export const updateDeviceSettings = async (
   value: string
 ): Promise<DeviceSettings> => {
   const response = await api.patch(`/devices/${deviceId}/settings`, { value });
+  return response.data;
+};
+
+// Grid-tie (Hoà lưới) on/off
+export const getGridTieStatus = async (
+  deviceId: string
+): Promise<GridTieStatus> => {
+  const response = await api.get(`/devices/${deviceId}/grid-tie`);
+  return response.data;
+};
+
+export const setGridTieStatus = async (
+  deviceId: string,
+  status: number // 1 = tắt (OFF), 0 = bật (ON)
+): Promise<{ status: number; gridTieOff: boolean; setting: DeviceSettings }> => {
+  const response = await api.patch(`/devices/${deviceId}/grid-tie`, { status });
   return response.data;
 };
 

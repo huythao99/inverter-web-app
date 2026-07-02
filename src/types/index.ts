@@ -26,6 +26,12 @@ export interface DeviceSchedule {
   updatedAt?: string;
 }
 
+export interface GridTieStatus {
+  deviceId: string;
+  status: number; // 1 = OFF, 0 = ON
+  gridTieOff: boolean;
+}
+
 export interface InverterData {
   _id?: string;
   userId: string;

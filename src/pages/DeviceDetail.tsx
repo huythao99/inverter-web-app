@@ -26,6 +26,8 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import {
   getDevice,
   getDeviceSettings,
+  getGridTieStatus,
+  setGridTieStatus,
   getDeviceSchedule,
   getLatestDeviceData,
   getDeviceMonthlyTotals,
@@ -74,6 +76,14 @@ export function DeviceDetail() {
     enabled: !!deviceId && activeTab === 'schedule',
   });
 
+  const gridTieQuery = useQuery({
+    queryKey: ['device-grid-tie', deviceId],
+    queryFn: () => getGridTieStatus(deviceId!),
+    enabled: !!deviceId,
+  });
+
+  const gridTieOff = gridTieQuery.data?.gridTieOff ?? false;
+
   const latestDataQuery = useQuery({
     queryKey: ['device-latest-data', deviceId],
     queryFn: () => getLatestDeviceData(deviceId!),
@@ -117,6 +127,15 @@ export function DeviceDetail() {
     mutationFn: (schedule: string) => updateDeviceSchedule(deviceId!, schedule),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['device-schedule', deviceId] });
+    },
+  });
+
+  const gridTieMutation = useMutation({
+    mutationFn: (status: number) => setGridTieStatus(deviceId!, status),
+    onSuccess: () => {
+      // After toggling, re-fetch grid-tie status and the stored setting
+      queryClient.invalidateQueries({ queryKey: ['device-grid-tie', deviceId] });
+      queryClient.invalidateQueries({ queryKey: ['device-settings', deviceId] });
     },
   });
 
@@ -326,6 +345,9 @@ export function DeviceDetail() {
               latestFirmware={latestFirmwareQuery.data?.version}
               onFirmwareUpdate={() => firmwareUpdateMutation.mutate()}
               isUpdatingFirmware={firmwareUpdateMutation.isPending}
+              gridTieOff={gridTieOff}
+              onToggleGridTie={(status) => gridTieMutation.mutate(status)}
+              isTogglingGridTie={gridTieMutation.isPending || gridTieQuery.isLoading}
             />
           )}
 
@@ -338,6 +360,7 @@ export function DeviceDetail() {
               isSaving={updateScheduleMutation.isPending}
               error={scheduleQuery.error}
               onRetry={() => scheduleQuery.refetch()}
+              gridTieOff={gridTieOff}
             />
           )}
         </div>
@@ -771,6 +794,9 @@ function SettingsTab({
   latestFirmware,
   onFirmwareUpdate,
   isUpdatingFirmware,
+  gridTieOff,
+  onToggleGridTie,
+  isTogglingGridTie,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -784,6 +810,9 @@ function SettingsTab({
   latestFirmware?: string;
   onFirmwareUpdate: () => void;
   isUpdatingFirmware: boolean;
+  gridTieOff: boolean;
+  onToggleGridTie: (status: number) => void;
+  isTogglingGridTie: boolean;
 }) {
   const [vBattUvp, setVBattUvp] = useState('48.00');
   const [pMaxDischarge, setPMaxDischarge] = useState('500');
@@ -861,6 +890,49 @@ function SettingsTab({
 
   return (
     <div className="space-y-6">
+      {/* Grid-tie (Hoà lưới) Section */}
+      <div className="bg-gray-50 rounded-xl p-4 shadow-sm">
+        <h4 className="text-base font-semibold text-gray-900 mb-4">Hoà lưới</h4>
+        <div className="border-t border-gray-200 pt-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className={`p-2 rounded-lg ${gridTieOff ? 'bg-gray-200' : 'bg-green-100'}`}>
+                <Plug className={`w-5 h-5 ${gridTieOff ? 'text-gray-500' : 'text-green-600'}`} />
+              </div>
+              <div>
+                <span className="text-sm font-medium text-gray-700">
+                  {gridTieOff ? 'Đã tắt hoà lưới' : 'Đang hoà lưới'}
+                </span>
+                <p className="text-xs text-gray-500">
+                  {gridTieOff ? 'Bật để cho phép hoà lưới' : 'Tắt để ngừng hoà lưới'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={!gridTieOff}
+              disabled={isTogglingGridTie}
+              onClick={() => onToggleGridTie(gridTieOff ? 0 : 1)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${
+                gridTieOff ? 'bg-gray-300' : 'bg-blue-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  gridTieOff ? 'translate-x-1' : 'translate-x-6'
+                }`}
+              />
+            </button>
+          </div>
+          {gridTieOff && (
+            <p className="text-xs text-amber-600 mt-3">
+              Lịch không hoạt động do bạn đã tắt hoà lưới.
+            </p>
+          )}
+        </div>
+      </div>
+
       {/* Voltage Section */}
       <div className="bg-gray-50 rounded-xl p-4 shadow-sm">
         <h4 className="text-base font-semibold text-gray-900 mb-4">Điện áp</h4>
@@ -1128,6 +1200,7 @@ function ScheduleTab({
   isSaving,
   error,
   onRetry,
+  gridTieOff,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -1136,6 +1209,7 @@ function ScheduleTab({
   isSaving: boolean;
   error: Error | null;
   onRetry: () => void;
+  gridTieOff: boolean;
 }) {
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
 
@@ -1201,6 +1275,16 @@ function ScheduleTab({
 
   return (
     <div className="space-y-4">
+      {/* Grid-tie off notice */}
+      {gridTieOff && (
+        <div className="flex items-start space-x-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <WifiOff className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <p className="text-sm font-medium text-amber-700">
+            Lịch không hoạt động do bạn đã tắt hoà lưới.
+          </p>
+        </div>
+      )}
+
       {/* Schedule Cards */}
       {schedules.map((schedule, index) => (
         <div key={index} className="bg-gray-50 rounded-xl p-4 shadow-sm">

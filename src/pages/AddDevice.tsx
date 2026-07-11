@@ -24,6 +24,7 @@ export function AddDevice() {
   const [wifiSsid, setWifiSsid] = useState('');
   const [wifiPassword, setWifiPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isOpenNetwork, setIsOpenNetwork] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
@@ -67,15 +68,17 @@ export function AddDevice() {
       return 'Tên WiFi chứa ký tự không hợp lệ';
     }
 
-    // Password validation
-    if (!wifiPassword) {
-      return 'Vui lòng nhập mật khẩu WiFi';
-    }
-    if (wifiPassword.length < 8) {
-      return 'Mật khẩu WiFi phải có ít nhất 8 ký tự';
-    }
-    if (wifiPassword.length > 63) {
-      return 'Mật khẩu WiFi không được vượt quá 63 ký tự';
+    // Password validation — skipped for open networks (no password)
+    if (!isOpenNetwork) {
+      if (!wifiPassword) {
+        return 'Vui lòng nhập mật khẩu WiFi';
+      }
+      if (wifiPassword.length < 8) {
+        return 'Mật khẩu WiFi phải có ít nhất 8 ký tự';
+      }
+      if (wifiPassword.length > 63) {
+        return 'Mật khẩu WiFi không được vượt quá 63 ký tự';
+      }
     }
 
     return null;
@@ -131,10 +134,13 @@ export function AddDevice() {
       return;
     }
 
+    // Open networks send an empty password regardless of any stale field value
+    const effectivePassword = isOpenNetwork ? '' : wifiPassword;
+
     // Build query parameters (matching Flutter app)
     const queryParams = new URLSearchParams({
       ssid: wifiSsid.trim(),
-      password: wifiPassword,
+      password: effectivePassword,
       uid: userId,
     });
 
@@ -155,7 +161,7 @@ export function AddDevice() {
       // Create request body
       const bodyData = {
         ssid: wifiSsid.trim(),
-        password: wifiPassword,
+        password: effectivePassword,
         uid: userId,
       };
 
@@ -388,34 +394,48 @@ export function AddDevice() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mật khẩu WiFi
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={wifiPassword}
-                      onChange={(e) => setWifiPassword(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-12"
-                      placeholder="Nhập mật khẩu WiFi"
-                      required
-                      minLength={8}
-                      maxLength={63}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                    >
-                      {showPassword ? (
-                        <EyeOff className="w-5 h-5" />
-                      ) : (
-                        <Eye className="w-5 h-5" />
-                      )}
-                    </button>
+                {!isOpenNetwork && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Mật khẩu WiFi
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={wifiPassword}
+                        onChange={(e) => setWifiPassword(e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-12"
+                        placeholder="Nhập mật khẩu WiFi"
+                        required
+                        minLength={8}
+                        maxLength={63}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="w-5 h-5" />
+                        ) : (
+                          <Eye className="w-5 h-5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                <label className="flex items-center space-x-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isOpenNetwork}
+                    onChange={(e) => setIsOpenNetwork(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Mạng mở (không mật khẩu)
+                  </span>
+                </label>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">

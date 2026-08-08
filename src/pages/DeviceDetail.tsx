@@ -31,6 +31,7 @@ import {
   getDeviceSchedule,
   getLatestDeviceData,
   getDeviceMonthlyTotals,
+  getDailyTotalsToday,
   calculateDailyTotals,
   updateDeviceSettings,
   updateDeviceSchedule,
@@ -112,6 +113,12 @@ export function DeviceDetail() {
   const dailyTotalsQuery = useQuery({
     queryKey: ['device-daily-totals', deviceId],
     queryFn: () => calculateDailyTotals(deviceId!),
+    enabled: !!deviceId && activeTab === 'overview',
+  });
+
+  const dailyTodayQuery = useQuery({
+    queryKey: ['device-daily-today', deviceId],
+    queryFn: () => getDailyTotalsToday(deviceId!),
     enabled: !!deviceId && activeTab === 'overview',
   });
 
@@ -321,11 +328,13 @@ export function DeviceDetail() {
               latestData={latestDataQuery.data}
               monthlyTotals={monthlyTotalsQuery.data}
               dailyTotals={dailyTotalsQuery.data}
-              isLoading={latestDataQuery.isLoading || monthlyTotalsQuery.isLoading || dailyTotalsQuery.isLoading}
+              dailyToday={dailyTodayQuery.data}
+              isLoading={latestDataQuery.isLoading || monthlyTotalsQuery.isLoading || dailyTotalsQuery.isLoading || dailyTodayQuery.isLoading}
               onRefresh={() => {
                 latestDataQuery.refetch();
                 monthlyTotalsQuery.refetch();
                 dailyTotalsQuery.refetch();
+                dailyTodayQuery.refetch();
               }}
               isRefreshing={latestDataQuery.isRefetching}
             />
@@ -434,6 +443,7 @@ function OverviewTab({
   latestData,
   monthlyTotals,
   dailyTotals,
+  dailyToday,
   isLoading,
   onRefresh,
   isRefreshing,
@@ -441,6 +451,7 @@ function OverviewTab({
   latestData: any;
   monthlyTotals: any;
   dailyTotals: { totalA: number; totalA2: number } | undefined;
+  dailyToday: { totalA: number; totalA2: number } | undefined;
   isLoading: boolean;
   onRefresh: () => void;
   isRefreshing: boolean;
@@ -577,6 +588,62 @@ function OverviewTab({
           Không có dữ liệu
         </div>
       )}
+
+      {/* Today's Totals */}
+      <div className="border-t pt-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Hôm nay</h3>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-yellow-50 rounded-lg p-4 text-center">
+            <p className="text-sm text-yellow-600 mb-1">Năng lượng xả</p>
+            <p className="text-2xl font-bold text-yellow-900">
+              {(dailyToday?.totalA ?? 0).toFixed(2)}
+            </p>
+            <p className="text-xs text-yellow-600">kWh</p>
+          </div>
+          <div className="bg-blue-50 rounded-lg p-4 text-center">
+            <p className="text-sm text-blue-600 mb-1">Năng lượng lấy lưới</p>
+            <p className="text-2xl font-bold text-blue-900">
+              {(dailyToday?.totalA2 ?? 0).toFixed(2)}
+            </p>
+            <p className="text-xs text-blue-600">kWh</p>
+          </div>
+          <div className="bg-green-50 rounded-lg p-4 text-center">
+            <p className="text-sm text-green-600 mb-1">Năng lượng tiêu thụ</p>
+            <p className="text-2xl font-bold text-green-900">
+              {((dailyToday?.totalA ?? 0) + (dailyToday?.totalA2 ?? 0)).toFixed(2)}
+            </p>
+            <p className="text-xs text-green-600">kWh</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Monthly Totals */}
+      <div className="border-t pt-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Tháng này</h3>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-yellow-50 rounded-lg p-4 text-center">
+            <p className="text-sm text-yellow-600 mb-1">Năng lượng xả</p>
+            <p className="text-2xl font-bold text-yellow-900">
+              {(monthlyTotals?.totalA ?? 0).toFixed(2)}
+            </p>
+            <p className="text-xs text-yellow-600">kWh</p>
+          </div>
+          <div className="bg-blue-50 rounded-lg p-4 text-center">
+            <p className="text-sm text-blue-600 mb-1">Năng lượng lấy lưới</p>
+            <p className="text-2xl font-bold text-blue-900">
+              {(monthlyTotals?.totalA2 ?? 0).toFixed(2)}
+            </p>
+            <p className="text-xs text-blue-600">kWh</p>
+          </div>
+          <div className="bg-green-50 rounded-lg p-4 text-center">
+            <p className="text-sm text-green-600 mb-1">Năng lượng tiêu thụ</p>
+            <p className="text-2xl font-bold text-green-900">
+              {((monthlyTotals?.totalA ?? 0) + (monthlyTotals?.totalA2 ?? 0)).toFixed(2)}
+            </p>
+            <p className="text-xs text-green-600">kWh</p>
+          </div>
+        </div>
+      </div>
 
       {/* Monthly Summary */}
       {monthlyTotals && (

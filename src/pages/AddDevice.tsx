@@ -64,10 +64,6 @@ export function AddDevice() {
     if (wifiSsid.length > 32) {
       return 'Tên WiFi không được vượt quá 32 ký tự';
     }
-    if (/[^\x20-\x7E]/.test(wifiSsid)) {
-      return 'Tên WiFi chứa ký tự không hợp lệ';
-    }
-
     // Password validation — skipped for open networks (no password)
     if (!isOpenNetwork) {
       if (!wifiPassword) {

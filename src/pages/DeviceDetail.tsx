@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -18,7 +18,15 @@ import {
   Wifi,
   WifiOff,
   Trash2,
+  HeadphonesIcon,
+  Phone,
+  MessageCircle,
+  MapPin,
+  MonitorSmartphone,
+  Cpu,
 } from 'lucide-react';
+import { useQuery as useRCQuery } from '@tanstack/react-query';
+import { fetchSupportConfig } from '../services/remoteConfig';
 import { useDeviceMqtt } from '../hooks/useDeviceMqtt';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
@@ -41,7 +49,7 @@ import {
   triggerFirmwareUpdate,
 } from '../services/api';
 
-type TabType = 'overview' | 'settings' | 'schedule';
+type TabType = 'overview' | 'settings' | 'schedule' | 'support';
 
 export function DeviceDetail() {
   const { deviceId } = useParams<{ deviceId: string }>();
@@ -185,6 +193,7 @@ export function DeviceDetail() {
     { id: 'overview', label: 'Tổng quan', icon: BarChart3 },
     { id: 'settings', label: 'Cài đặt', icon: Settings },
     { id: 'schedule', label: 'Lịch trình', icon: Clock },
+    { id: 'support', label: 'Hỗ trợ', icon: HeadphonesIcon },
   ];
 
   if (deviceQuery.isLoading) {
@@ -372,6 +381,8 @@ export function DeviceDetail() {
               gridTieOff={gridTieOff}
             />
           )}
+
+          {activeTab === 'support' && <SupportTab />}
         </div>
       </div>
     </Layout>
@@ -1467,6 +1478,137 @@ function ScheduleTab({
           </>
         )}
       </button>
+    </div>
+  );
+}
+
+// Support Tab Component
+function SupportTab() {
+  const { data: config, isLoading } = useRCQuery({
+    queryKey: ['support-config'],
+    queryFn: fetchSupportConfig,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-8">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold text-gray-900">Thông tin hỗ trợ</h3>
+
+      {/* Hardware Support */}
+      <SupportItem
+        icon={Cpu}
+        iconBg="bg-blue-100"
+        iconColor="text-blue-600"
+        title="Hỗ trợ phần cứng"
+        name={config?.hardwareSupportName}
+        phone={config?.hardwareSupportPhone}
+      />
+
+      {/* Software Support */}
+      <SupportItem
+        icon={MonitorSmartphone}
+        iconBg="bg-purple-100"
+        iconColor="text-purple-600"
+        title="Hỗ trợ phần mềm"
+        name={config?.softwareSupportName}
+        phone={config?.softwareSupportPhone}
+      />
+
+      {/* Warranty Address */}
+      {config?.warrantyAddress && (
+        <a
+          href={config.warrantyAddressLink || undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block"
+        >
+          <div className="flex items-center space-x-4 p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-blue-300 transition-colors">
+            <div className="p-3 bg-orange-100 rounded-lg flex-shrink-0">
+              <MapPin className="w-6 h-6 text-orange-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-gray-900">Địa chỉ bảo hành</p>
+              <p className="text-sm text-gray-600 mt-0.5">{config.warrantyAddress}</p>
+            </div>
+            {config.warrantyAddressLink && (
+              <div className="p-2 bg-orange-50 rounded-lg flex-shrink-0">
+                <MapPin className="w-5 h-5 text-orange-600" />
+              </div>
+            )}
+          </div>
+        </a>
+      )}
+
+      {/* Messenger Group */}
+      {config?.messengerGroupLink && (
+        <a
+          href={config.messengerGroupLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block"
+        >
+          <div className="flex items-center space-x-4 p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:border-indigo-300 transition-colors">
+            <div className="p-3 bg-indigo-100 rounded-lg flex-shrink-0">
+              <MessageCircle className="w-6 h-6 text-indigo-600" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-gray-900">Nhóm hỗ trợ Messenger</p>
+              <p className="text-sm text-gray-600 mt-0.5">Tham gia nhóm chat để được hỗ trợ</p>
+            </div>
+            <div className="p-2 bg-indigo-50 rounded-lg flex-shrink-0">
+              <ArrowLeft className="w-5 h-5 text-indigo-600 rotate-180" />
+            </div>
+          </div>
+        </a>
+      )}
+    </div>
+  );
+}
+
+function SupportItem({
+  icon: Icon,
+  iconBg,
+  iconColor,
+  title,
+  name,
+  phone,
+}: {
+  icon: React.ElementType;
+  iconBg: string;
+  iconColor: string;
+  title: string;
+  name?: string;
+  phone?: string;
+}) {
+  return (
+    <div className="flex items-center space-x-4 p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
+      <div className={`p-3 ${iconBg} rounded-lg flex-shrink-0`}>
+        <Icon className={`w-6 h-6 ${iconColor}`} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-gray-900">{title}</p>
+        {name && <p className="text-sm text-gray-600 mt-0.5">{name}</p>}
+        {phone && <p className="text-sm text-gray-500">{phone}</p>}
+        {!name && !phone && (
+          <p className="text-sm text-gray-400 italic">Chưa có thông tin</p>
+        )}
+      </div>
+      {phone && (
+        <a
+          href={`tel:${phone}`}
+          className="p-2.5 bg-green-50 rounded-lg flex-shrink-0 hover:bg-green-100 transition-colors"
+        >
+          <Phone className="w-5 h-5 text-green-600" />
+        </a>
+      )}
     </div>
   );
 }

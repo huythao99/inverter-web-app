@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+
+const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -9,13 +11,11 @@ import {
   Save,
   RefreshCw,
   Zap,
-  Battery,
   Plug,
   Activity,
   TrendingUp,
   Plus,
   X,
-  Wifi,
   WifiOff,
   Trash2,
   HeadphonesIcon,
@@ -64,7 +64,7 @@ export function DeviceDetail() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // MQTT for real-time data
-  const { connectionStatus, isDeviceOnline } = useDeviceMqtt(deviceId);
+  const { isDeviceOnline } = useDeviceMqtt(deviceId);
 
   // Queries
   const deviceQuery = useQuery({
@@ -226,50 +226,50 @@ export function DeviceDetail() {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      {/* Mobile-style background */}
+      <div className="fixed inset-0 -z-10 pointer-events-none">
+        <img src={asset('assets/images/background_2.png')} className="w-full h-full object-cover" alt="" aria-hidden="true" />
+      </div>
+      <div className="relative z-10 max-w-2xl mx-auto space-y-3 pb-8">
         {/* Header */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
           <Link
             to="/"
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-white/50 rounded-lg transition-colors flex-shrink-0"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ArrowLeft className="w-5 h-5 text-gray-700" />
           </Link>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             {isEditingName ? (
               <div className="flex items-center space-x-2">
                 <input
                   type="text"
                   value={deviceName}
                   onChange={(e) => setDeviceName(e.target.value)}
-                  className="text-2xl font-bold text-gray-900 border-b-2 border-blue-500 outline-none bg-transparent"
+                  className="text-lg font-bold text-gray-900 border-b-2 border-blue-500 outline-none bg-transparent w-full"
                   autoFocus
                 />
                 <button
                   onClick={() => updateDeviceMutation.mutate(deviceName)}
                   disabled={updateDeviceMutation.isPending}
-                  className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex-shrink-0"
                 >
                   <Save className="w-4 h-4" />
                 </button>
               </div>
             ) : (
               <h1
-                className="text-2xl font-bold text-gray-900 cursor-pointer hover:text-blue-600"
+                className="text-lg font-bold text-gray-900 cursor-pointer hover:text-blue-600 truncate"
                 onClick={() => setIsEditingName(true)}
               >
                 {device?.deviceName || device?.deviceId}
               </h1>
             )}
-            <div className="flex items-center space-x-2">
-              <p className="text-gray-500">Mã thiết bị: {deviceId}</p>
-              <DeviceStatusIndicator isOnline={isDeviceOnline} />
-              <ConnectionStatusIndicator status={connectionStatus} />
-            </div>
+            <DeviceStatusIndicator isOnline={isDeviceOnline} />
           </div>
           <button
             onClick={() => setShowDeleteConfirm(true)}
-            className="p-2 hover:bg-red-100 rounded-lg transition-colors text-red-600"
+            className="p-2 hover:bg-red-100 rounded-lg transition-colors text-red-600 flex-shrink-0"
             title="Xóa thiết bị"
           >
             <Trash2 className="w-5 h-5" />
@@ -312,12 +312,12 @@ export function DeviceDetail() {
 
         {/* Tabs */}
         <div className="border-b border-gray-200">
-          <nav className="flex space-x-8">
+          <nav className="flex space-x-4 overflow-x-auto scrollbar-none">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as TabType)}
-                className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                className={`flex items-center space-x-2 py-3 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap flex-shrink-0 ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -331,7 +331,7 @@ export function DeviceDetail() {
         </div>
 
         {/* Tab Content */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-white/60 p-4 sm:p-6">
           {activeTab === 'overview' && (
             <OverviewTab
               latestData={latestDataQuery.data}
@@ -478,10 +478,9 @@ function OverviewTab({
   const parsedData = parseInverterValue(latestData?.value);
 
   return (
-    <div className="space-y-8">
-      {/* Header with Refresh */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Dữ liệu thời gian thực</h3>
+    <div className="space-y-4">
+      {/* Refresh */}
+      <div className="flex justify-end">
         <button
           onClick={onRefresh}
           disabled={isRefreshing}
@@ -494,98 +493,106 @@ function OverviewTab({
 
       {parsedData ? (
         <>
-          {/* Main Stats - Primary metrics */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard
-              icon={Battery}
-              label="Công suất ắc quy"
-              value={`${parsedData.batteryPower.toFixed(0)} W`}
-              subValue={`${parsedData.batteryVoltage.toFixed(1)}V / ${parsedData.dischargeCurrent.toFixed(2)}A`}
-              color="yellow"
-            />
-            <StatCard
-              icon={Zap}
-              label="Công suất hoà lưới"
-              value={`${parsedData.energy.toFixed(0)} W`}
-              subValue={`${parsedData.gridVoltage.toFixed(1)}V / ${parsedData.gridFrequency.toFixed(1)}Hz`}
-              color="green"
-            />
-            <StatCard
-              icon={Plug}
-              label="Tiêu thụ"
-              value={`${parsedData.consumption.toFixed(0)} W`}
-              subValue="Lấy lưới + Hoà lưới"
-              color="blue"
-            />
-            <StatCard
-              icon={Activity}
-              label="Lấy lưới"
-              value={`${parsedData.gridPower.toFixed(0)} W`}
-              subValue={`${parsedData.gridVoltage.toFixed(1)}V / ${parsedData.gridFrequency.toFixed(1)}Hz`}
-              color="purple"
-            />
+          {/* Thông tin hệ thống - matching mobile layout */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-white/60 p-4 space-y-3">
+            <p className="text-sm font-semibold text-gray-700">Thông tin hệ thống</p>
+
+            {/* Battery top center + voltage/current top-right */}
+            <div className="grid grid-cols-[1fr_auto_1fr] items-start py-1">
+              <div />
+              <div className="flex flex-col items-center">
+                <div className="w-14 h-14 rounded-full border-2 border-blue-300 bg-white flex items-center justify-center shadow-sm">
+                  <img src={asset('assets/icons/icon_battery.svg')} className="w-7 h-7" alt="" />
+                </div>
+                <img src={asset('assets/images/ic_arrow_down.gif')} className="h-6 mt-0.5" alt="" />
+                <p className="text-xl font-bold text-gray-900">{parsedData.batteryPower.toFixed(2)} W</p>
+                <p className="text-xs text-gray-400">Công suất xả</p>
+              </div>
+              <div className="flex flex-col items-end justify-start space-y-1.5 pt-1">
+                <p className="text-xs text-gray-500 text-right">Điện áp: <span className="text-blue-600 font-semibold">{parsedData.batteryVoltage.toFixed(2)} V</span></p>
+                <p className="text-xs text-gray-500 text-right">Dòng điện xả: <span className="text-blue-600 font-semibold">{parsedData.dischargeCurrent.toFixed(2)} A</span></p>
+              </div>
+            </div>
+
+            {/* Grid voltage + arrow (left 32/62 like mobile) */}
+            <div className="flex items-center">
+              <div className="flex-[32] flex items-center justify-between">
+                <p className="text-xs font-medium text-blue-500">
+                  {parsedData.gridVoltage.toFixed(2)}V - {parsedData.gridFrequency.toFixed(2)}Hz
+                </p>
+                <img src={asset('assets/images/ic_arrow_down.gif')} className="h-5" alt="" />
+              </div>
+              <div className="flex-[30]" />
+            </div>
+
+            {/* Main energy flow row: Grid → Lấy lưới → Inverter → Tiêu thụ → House */}
+            <div className="flex items-center">
+              <div className="w-10 h-10 rounded-full border-2 border-blue-300 bg-white flex items-center justify-center flex-shrink-0">
+                <img src={asset('assets/icons/icon_electricity.svg')} className="w-5 h-5" alt="" />
+              </div>
+              <div className="flex-1 flex items-center">
+                <img src={asset('assets/images/ic_arrow.gif')} className="w-5 flex-shrink-0" alt="" />
+                <div className="flex-1 text-center">
+                  <p className="text-xs font-bold leading-tight text-gray-900">{parsedData.gridPower.toFixed(2)} W</p>
+                  <p className="text-xs text-gray-400">Lấy lưới</p>
+                </div>
+                <img src={asset('assets/images/ic_arrow.gif')} className="w-5 flex-shrink-0" alt="" />
+              </div>
+              <div className="w-12 h-12 rounded-full border-2 border-orange-300 bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                <img src={asset('assets/icons/icon_inverter_3.svg')} className="w-7 h-7" alt="" />
+              </div>
+              <div className="flex-1 flex items-center">
+                <img src={asset('assets/images/ic_arrow.gif')} className="w-5 flex-shrink-0" alt="" />
+                <div className="flex-1 text-center">
+                  <p className="text-xs font-bold leading-tight text-gray-900">{parsedData.consumption.toFixed(2)} W</p>
+                  <p className="text-xs text-gray-400">Tiêu thụ</p>
+                </div>
+                <img src={asset('assets/images/ic_arrow.gif')} className="w-5 flex-shrink-0" alt="" />
+              </div>
+              <div className="w-10 h-10 rounded-full border-2 border-blue-300 bg-white flex items-center justify-center flex-shrink-0">
+                <img src={asset('assets/icons/icon_house.svg')} className="w-5 h-5" alt="" />
+              </div>
+            </div>
+
+            {/* Summary stats: Lấy lưới tổng | Điện áp ngắt | Tiêu thụ tổng */}
+            <div className="flex justify-between pt-2 border-t border-gray-100">
+              <div>
+                <p className="text-sm font-bold text-gray-900">{(dailyTotals?.totalA2 ?? 0).toFixed(2)} kWh</p>
+                <p className="text-xs text-gray-500">Lấy lưới tổng</p>
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-bold text-gray-900">{parsedData.vBattUvpSetReal.toFixed(2)} V</p>
+                <p className="text-xs text-gray-500">Điện áp ngắt</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-bold text-gray-900">{((dailyTotals?.totalA ?? 0) + (dailyTotals?.totalA2 ?? 0)).toFixed(2)} kWh</p>
+                <p className="text-xs text-gray-500">Tiêu thụ tổng</p>
+              </div>
+            </div>
+
+            {/* Bottom center: Công suất giới hạn + hoà lưới + nhiệt độ */}
+            <div className="text-center space-y-1.5 pt-2 border-t border-gray-100">
+              <div>
+                <p className="text-sm font-bold text-gray-900">{parsedData.pMaxDischargeSetReal.toFixed(0)} W</p>
+                <p className="text-xs text-gray-400">Công suất giới hạn</p>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-900">{parsedData.energy.toFixed(2)} W</p>
+                <p className="text-xs text-gray-400">Công suất hoà lưới</p>
+              </div>
+              <div className="flex items-center justify-center space-x-1">
+                <img src={asset('assets/icons/icon_temp.svg')} className="w-5 h-5" alt="" />
+                <p className="text-xs font-medium text-orange-600">Nhiệt độ Mosfet: {parsedData.temperature.toFixed(1)} °C</p>
+              </div>
+            </div>
           </div>
 
-          {/* Detailed Parameters Section */}
-          <div className="space-y-4">
-            <h4 className="text-md font-semibold text-gray-700">Thông số chi tiết</h4>
-
-            {/* Battery Section */}
-            <div className="bg-yellow-50 rounded-lg p-4">
-              <h5 className="text-sm font-medium text-yellow-700 mb-3 flex items-center">
-                <Battery className="w-4 h-4 mr-2" /> Thông số ắc quy
-              </h5>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <DataItem label="Điện áp" value={`${parsedData.batteryVoltage.toFixed(1)} V`} />
-                <DataItem label="Dòng điện xả" value={`${parsedData.dischargeCurrent.toFixed(2)} A`} />
-                <DataItem label="Công suất xả" value={`${(parsedData.batteryPower).toFixed(0)} W`} />
-                <DataItem label="Công suất hoà lưới" value={`${parsedData.energy.toFixed(0)} W`} />
-              </div>
-            </div>
-
-            {/* Grid Section */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h5 className="text-sm font-medium text-gray-600 mb-3 flex items-center">
-                <Zap className="w-4 h-4 mr-2" /> Thông số lưới điện
-              </h5>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <DataItem label="Điện áp" value={`${parsedData.gridVoltage.toFixed(1)} V`} />
-                <DataItem label="Tần số" value={`${parsedData.gridFrequency.toFixed(2)} Hz`} />
-                <DataItem label="Lấy lưới" value={`${parsedData.gridPower.toFixed(0)} W`} />
-              </div>
-            </div>
-
-            {/* Consumption & System Section */}
-            <div className="bg-blue-50 rounded-lg p-4">
-              <h5 className="text-sm font-medium text-blue-700 mb-3 flex items-center">
-                <Activity className="w-4 h-4 mr-2" /> Tiêu thụ & Hệ thống
-              </h5>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <DataItem label="Tiêu thụ" value={`${parsedData.consumption.toFixed(0)} W`} />
-                <DataItem label="Nhiệt độ Mosfet" value={`${parsedData.temperature.toFixed(1)} °C`} />
-                <DataItem label="Điện áp ngắt" value={`${parsedData.vBattUvpSetReal.toFixed(2)} V`} />
-                <DataItem label="Công suất giới hạn" value={`${parsedData.pMaxDischargeSetReal.toFixed(0)} W`} />
-              </div>
-            </div>
-
-            {/* Energy Totals Section */}
-            <div className="bg-purple-50 rounded-lg p-4">
-              <h5 className="text-sm font-medium text-purple-700 mb-3 flex items-center">
-                <TrendingUp className="w-4 h-4 mr-2" /> Tổng năng lượng
-              </h5>
-              <div className="grid grid-cols-2 gap-4">
-                <DataItem label="Năng lượng xả" value={`${(dailyTotals?.totalA ?? 0).toFixed(2)} kWh`} />
-                <DataItem label="Lấy lưới tổng" value={`${(dailyTotals?.totalA2 ?? 0).toFixed(2)} kWh`} />
-              </div>
-            </div>
-          </div>
-
-          {/* Raw Data (collapsible for debugging) */}
+          {/* Raw data collapsible */}
           <details className="text-sm">
-            <summary className="cursor-pointer text-gray-500 hover:text-gray-700">
-              Hiển thị dữ liệu thô ({parsedData.rawParts.length} trường)
+            <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-600">
+              Dữ liệu thô ({parsedData.rawParts.length} trường)
             </summary>
-            <div className="mt-2 p-3 bg-gray-100 rounded-lg font-mono text-xs overflow-x-auto">
+            <div className="mt-2 p-3 bg-gray-50 rounded-xl font-mono text-xs overflow-x-auto">
               {parsedData.rawParts.map((part, index) => (
                 <span key={index} className="inline-block mr-2 mb-1 px-2 py-1 bg-white rounded">
                   [{index}]: {part}
@@ -595,108 +602,60 @@ function OverviewTab({
           </details>
         </>
       ) : (
-        <div className="text-center py-8 text-gray-500">
-          Không có dữ liệu
-        </div>
+        <div className="text-center py-8 text-gray-500">Không có dữ liệu</div>
       )}
 
-      {/* Today's Totals */}
-      <div className="border-t pt-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Hôm nay</h3>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-yellow-50 rounded-lg p-4 text-center">
-            <p className="text-sm text-yellow-600 mb-1">Năng lượng xả</p>
-            <p className="text-2xl font-bold text-yellow-900">
-              {(dailyToday?.totalA ?? 0).toFixed(2)}
-            </p>
-            <p className="text-xs text-yellow-600">kWh</p>
-          </div>
-          <div className="bg-blue-50 rounded-lg p-4 text-center">
-            <p className="text-sm text-blue-600 mb-1">Năng lượng lấy lưới</p>
-            <p className="text-2xl font-bold text-blue-900">
-              {(dailyToday?.totalA2 ?? 0).toFixed(2)}
-            </p>
-            <p className="text-xs text-blue-600">kWh</p>
-          </div>
-          <div className="bg-green-50 rounded-lg p-4 text-center">
-            <p className="text-sm text-green-600 mb-1">Năng lượng tiêu thụ</p>
-            <p className="text-2xl font-bold text-green-900">
-              {((dailyToday?.totalA ?? 0) + (dailyToday?.totalA2 ?? 0)).toFixed(2)}
-            </p>
-            <p className="text-xs text-green-600">kWh</p>
+      {/* Hôm nay */}
+      <div>
+        <p className="text-sm font-semibold text-gray-900 mb-2">Hôm nay</p>
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-white/60 p-4">
+          <div className="flex justify-between">
+            <EnergyCol
+              iconSrc={asset('assets/icons/icon_battery_2.svg')}
+              value={(dailyToday?.totalA ?? 0).toFixed(2)}
+              label={"Năng lượng xả\n(kWh)"}
+            />
+            <EnergyCol
+              iconSrc={asset('assets/icons/icon_electric_poles.svg')}
+              value={(dailyToday?.totalA2 ?? 0).toFixed(2)}
+              label={"Năng lượng lấy\nlưới (kWh)"}
+            />
+            <EnergyCol
+              iconSrc={asset('assets/icons/icon_home_2.svg')}
+              value={((dailyToday?.totalA ?? 0) + (dailyToday?.totalA2 ?? 0)).toFixed(2)}
+              label={"Năng lượng tiêu\nthụ (kWh)"}
+            />
           </div>
         </div>
       </div>
 
-      {/* Monthly Totals */}
-      <div className="border-t pt-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Tháng này</h3>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-yellow-50 rounded-lg p-4 text-center">
-            <p className="text-sm text-yellow-600 mb-1">Năng lượng xả</p>
-            <p className="text-2xl font-bold text-yellow-900">
-              {(monthlyTotals?.totalA ?? 0).toFixed(2)}
-            </p>
-            <p className="text-xs text-yellow-600">kWh</p>
-          </div>
-          <div className="bg-blue-50 rounded-lg p-4 text-center">
-            <p className="text-sm text-blue-600 mb-1">Năng lượng lấy lưới</p>
-            <p className="text-2xl font-bold text-blue-900">
-              {(monthlyTotals?.totalA2 ?? 0).toFixed(2)}
-            </p>
-            <p className="text-xs text-blue-600">kWh</p>
-          </div>
-          <div className="bg-green-50 rounded-lg p-4 text-center">
-            <p className="text-sm text-green-600 mb-1">Năng lượng tiêu thụ</p>
-            <p className="text-2xl font-bold text-green-900">
-              {((monthlyTotals?.totalA ?? 0) + (monthlyTotals?.totalA2 ?? 0)).toFixed(2)}
-            </p>
-            <p className="text-xs text-green-600">kWh</p>
+      {/* Tháng này */}
+      <div>
+        <p className="text-sm font-semibold text-gray-900 mb-2">Tháng này</p>
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-white/60 p-4">
+          <div className="flex justify-between">
+            <EnergyCol
+              iconSrc={asset('assets/icons/icon_battery_2.svg')}
+              value={(monthlyTotals?.totalA ?? 0).toFixed(2)}
+              label={"Năng lượng xả\n(kWh)"}
+            />
+            <EnergyCol
+              iconSrc={asset('assets/icons/icon_electric_poles.svg')}
+              value={(monthlyTotals?.totalA2 ?? 0).toFixed(2)}
+              label={"Năng lượng lấy\nlưới (kWh)"}
+            />
+            <EnergyCol
+              iconSrc={asset('assets/icons/icon_home_2.svg')}
+              value={((monthlyTotals?.totalA ?? 0) + (monthlyTotals?.totalA2 ?? 0)).toFixed(2)}
+              label={"Năng lượng tiêu\nthụ (kWh)"}
+            />
           </div>
         </div>
       </div>
 
-      {/* Monthly Summary */}
-      {monthlyTotals && (
-        <div className="border-t pt-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Tổng kết tháng ({monthlyTotals.month}/{monthlyTotals.year})
-          </h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-blue-50 rounded-lg p-4">
-              <p className="text-sm text-blue-600">Tổng sản xuất</p>
-              <p className="text-2xl font-bold text-blue-900">
-                {monthlyTotals.totalA?.toFixed(2)} kWh
-              </p>
-            </div>
-            <div className="bg-orange-50 rounded-lg p-4">
-              <p className="text-sm text-orange-600">Tổng tiêu thụ</p>
-              <p className="text-2xl font-bold text-orange-900">
-                {monthlyTotals.totalA2?.toFixed(2)} kWh
-              </p>
-            </div>
-            <div className="bg-green-50 rounded-lg p-4">
-              <p className="text-sm text-green-600">Trung bình ngày</p>
-              <p className="text-2xl font-bold text-green-900">
-                {monthlyTotals.summary?.averageDailyA?.toFixed(2)} kWh
-              </p>
-            </div>
-            <div className="bg-yellow-50 rounded-lg p-4">
-              <p className="text-sm text-yellow-600">Ngày cao điểm</p>
-              <p className="text-2xl font-bold text-yellow-900">
-                {monthlyTotals.summary?.peakDayA?.value?.toFixed(2)} kWh
-              </p>
-              <p className="text-xs text-yellow-600">
-                {monthlyTotals.summary?.peakDayA?.date}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Last Updated */}
+      {/* Last updated */}
       {latestData?.updatedAt && (
-        <p className="text-sm text-gray-500 text-right border-t pt-4">
+        <p className="text-xs text-gray-400 text-right">
           Cập nhật lần cuối: {new Date(latestData.updatedAt).toLocaleString('vi-VN')}
         </p>
       )}
@@ -704,48 +663,20 @@ function OverviewTab({
   );
 }
 
-// Stat Card Component with sub-value
-function StatCard({
-  icon: Icon,
-  label,
+function EnergyCol({
+  iconSrc,
   value,
-  subValue,
-  color,
+  label,
 }: {
-  icon: any;
-  label: string;
+  iconSrc: string;
   value: string;
-  subValue?: string;
-  color: 'yellow' | 'green' | 'blue' | 'red' | 'purple';
+  label: string;
 }) {
-  const colors = {
-    yellow: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-    green: 'bg-green-50 text-green-700 border-green-200',
-    blue: 'bg-blue-50 text-blue-700 border-blue-200',
-    red: 'bg-red-50 text-red-700 border-red-200',
-    purple: 'bg-purple-50 text-purple-700 border-purple-200',
-  };
-
   return (
-    <div className={`rounded-lg p-4 border ${colors[color]}`}>
-      <div className="flex items-center space-x-2 mb-2">
-        <Icon className="w-5 h-5" />
-        <span className="text-sm font-medium">{label}</span>
-      </div>
-      <p className="text-2xl font-bold">{value}</p>
-      {subValue && (
-        <p className="text-xs mt-1 opacity-75">{subValue}</p>
-      )}
-    </div>
-  );
-}
-
-// Data Item Component for detailed parameters
-function DataItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-sm font-semibold text-gray-900">{value}</p>
+    <div className="flex flex-col items-center space-y-2">
+      <img src={iconSrc} className="w-8 h-8" alt="" />
+      <p className="text-base font-bold text-gray-900">{value}</p>
+      <p className="text-xs text-gray-500 text-center whitespace-pre-line">{label}</p>
     </div>
   );
 }
@@ -753,51 +684,15 @@ function DataItem({ label, value }: { label: string; value: string }) {
 // Device Status Indicator Component (online/offline based on MQTT message timeout)
 function DeviceStatusIndicator({ isOnline }: { isOnline: boolean }) {
   return (
-    <div className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs ${
-      isOnline ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-    }`}>
-      <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`} />
-      <span>{isOnline ? 'Thiết bị hoạt động' : 'Thiết bị ngoại tuyến'}</span>
-    </div>
-  );
-}
-
-// Connection Status Indicator Component (MQTT connection status)
-function ConnectionStatusIndicator({ status }: { status: string }) {
-  const statusConfig = {
-    connected: {
-      icon: Wifi,
-      color: 'text-green-600',
-      bgColor: 'bg-green-100',
-      label: 'MQTT kết nối',
-    },
-    connecting: {
-      icon: Wifi,
-      color: 'text-yellow-600',
-      bgColor: 'bg-yellow-100',
-      label: 'Đang kết nối...',
-    },
-    reconnecting: {
-      icon: Wifi,
-      color: 'text-yellow-600',
-      bgColor: 'bg-yellow-100',
-      label: 'Đang kết nối lại...',
-    },
-    disconnected: {
-      icon: WifiOff,
-      color: 'text-gray-500',
-      bgColor: 'bg-gray-100',
-      label: 'MQTT ngắt kết nối',
-    },
-  };
-
-  const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.disconnected;
-  const Icon = config.icon;
-
-  return (
-    <div className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs ${config.bgColor} ${config.color}`}>
-      <Icon className="w-3 h-3" />
-      <span>{config.label}</span>
+    <div className="inline-flex items-center space-x-1">
+      <img
+        src={isOnline ? asset('assets/icons/icon_wifi_on.svg') : asset('assets/icons/icon_wifi_off.svg')}
+        className="w-[18px] h-[18px]"
+        alt=""
+      />
+      <span className={`text-sm font-semibold ${isOnline ? 'text-green-600' : 'text-red-600'}`}>
+        {isOnline ? 'Online' : 'Offline'}
+      </span>
     </div>
   );
 }
@@ -1381,14 +1276,12 @@ function ScheduleTab({
 
           <div className="border-t border-gray-200 pt-4 space-y-4">
             {/* Voltage */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-yellow-100 rounded-lg">
-                  <Zap className="w-4 h-4 text-yellow-600" />
-                </div>
-                <span className="text-sm font-medium text-gray-700">Điện áp ngắt</span>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-yellow-100 rounded-lg flex-shrink-0">
+                <Zap className="w-4 h-4 text-yellow-600" />
               </div>
-              <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium text-gray-700 flex-1 min-w-0">Điện áp ngắt</span>
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <input
                   type="number"
                   step="0.01"
@@ -1403,14 +1296,12 @@ function ScheduleTab({
             </div>
 
             {/* Power */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Activity className="w-4 h-4 text-blue-600" />
-                </div>
-                <span className="text-sm font-medium text-gray-700">Công suất hoà tối đa</span>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg flex-shrink-0">
+                <Activity className="w-4 h-4 text-blue-600" />
               </div>
-              <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium text-gray-700 flex-1 min-w-0">Công suất tối đa</span>
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <input
                   type="number"
                   step="1"
@@ -1425,26 +1316,26 @@ function ScheduleTab({
             </div>
 
             {/* Time Range */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-green-100 rounded-lg">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg flex-shrink-0">
                   <Clock className="w-4 h-4 text-green-600" />
                 </div>
                 <span className="text-sm font-medium text-gray-700">Thời gian</span>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center gap-2 pl-11">
                 <input
                   type="time"
                   value={schedule.startTime}
                   onChange={(e) => updateSchedule(index, 'startTime', e.target.value)}
-                  className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
-                <span className="text-gray-400">-</span>
+                <span className="text-gray-400 flex-shrink-0">-</span>
                 <input
                   type="time"
                   value={schedule.endTime}
                   onChange={(e) => updateSchedule(index, 'endTime', e.target.value)}
-                  className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
             </div>

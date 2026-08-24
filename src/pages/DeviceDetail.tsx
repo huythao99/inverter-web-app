@@ -1062,7 +1062,7 @@ function SettingsTab({
       {/* Save Button */}
       <button
         onClick={handleSave}
-        disabled={isSaving}
+        disabled={isSaving || gridTieOff}
         className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
       >
         {isSaving ? (
@@ -1357,7 +1357,7 @@ function ScheduleTab({
       {/* Save Button */}
       <button
         onClick={handleSave}
-        disabled={isSaving}
+        disabled={isSaving || gridTieOff}
         className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
       >
         {isSaving ? (

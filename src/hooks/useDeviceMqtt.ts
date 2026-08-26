@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   getMqttClient,
   onConnectionStatusChange,
+  onMessage,
   ConnectionStatus,
   buildDataTopic,
   buildStatusTopic,
@@ -97,6 +98,10 @@ export function useDeviceMqtt(deviceId: string | undefined): UseDeviceMqttResult
     const currentUserId = userId;
     const currentDeviceId = deviceId;
 
+    // Register the message handler via the service registry so it survives the
+    // underlying client being recreated after an error/hard disconnect.
+    const unsubscribeMessage = onMessage(handleMessage);
+
     async function setupMqtt() {
       try {
         const client = await getMqttClient();
@@ -113,9 +118,6 @@ export function useDeviceMqtt(deviceId: string | undefined): UseDeviceMqttResult
             subscribedTopicsRef.current = [dataTopic, statusTopic];
           }
         });
-
-        // Listen for messages
-        client.on('message', handleMessage);
       } catch (error) {
         console.error('Failed to connect to MQTT:', error);
       }
@@ -153,6 +155,7 @@ export function useDeviceMqtt(deviceId: string | undefined): UseDeviceMqttResult
     return () => {
       mounted = false;
       unsubscribeStatus();
+      unsubscribeMessage();
 
       // Clear timeout
       if (offlineTimeoutRef.current) {
@@ -160,15 +163,16 @@ export function useDeviceMqtt(deviceId: string | undefined): UseDeviceMqttResult
         offlineTimeoutRef.current = null;
       }
 
-      // Unsubscribe from topics
-      if (subscribedTopicsRef.current.length > 0) {
+      // Unsubscribe from topics. Capture the list first, then clear the ref,
+      // so the async callback doesn't read an already-emptied array.
+      const topics = subscribedTopicsRef.current;
+      subscribedTopicsRef.current = [];
+      if (topics.length > 0) {
         getMqttClient().then(client => {
-          client.unsubscribe(subscribedTopicsRef.current);
-          client.removeListener('message', handleMessage);
+          client.unsubscribe(topics);
         }).catch(() => {
           // Ignore errors during cleanup
         });
-        subscribedTopicsRef.current = [];
       }
     };
   }, [deviceId, handleMessage, resetOfflineTimeout]);

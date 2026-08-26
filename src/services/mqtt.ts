@@ -14,6 +14,9 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 're
 type StatusListener = (status: ConnectionStatus) => void;
 const statusListeners = new Set<StatusListener>();
 
+type MessageListener = (topic: string, payload: Buffer) => void;
+const messageListeners = new Set<MessageListener>();
+
 let currentStatus: ConnectionStatus = 'disconnected';
 
 function notifyStatusChange(status: ConnectionStatus) {
@@ -26,6 +29,19 @@ export function onConnectionStatusChange(listener: StatusListener): () => void {
   // Immediately notify with current status
   listener(currentStatus);
   return () => statusListeners.delete(listener);
+}
+
+/**
+ * Register a handler for incoming MQTT messages.
+ *
+ * Handlers are stored in a registry (not attached directly to the client) so
+ * they survive the client being recreated after an error/hard disconnect.
+ * Whenever `connectMqtt` builds a new client it re-wires the single dispatcher
+ * to this registry, so subscribers keep receiving data without re-registering.
+ */
+export function onMessage(listener: MessageListener): () => void {
+  messageListeners.add(listener);
+  return () => messageListeners.delete(listener);
 }
 
 export function getConnectionStatus(): ConnectionStatus {
@@ -64,6 +80,13 @@ async function connectMqtt(): Promise<MqttClient> {
       connectionPromise = null;
       reject(new Error('MQTT connection timeout'));
     }, 15000);
+
+    // Dispatch every incoming message to the registry. Attached here so a
+    // freshly created client is always wired up, even after a reconnect that
+    // replaced the previous client instance.
+    client.on('message', (topic, payload) => {
+      messageListeners.forEach(listener => listener(topic, payload as Buffer));
+    });
 
     client.on('connect', () => {
       clearTimeout(timeoutId);

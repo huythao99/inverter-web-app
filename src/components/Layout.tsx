@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogOut, Sun, User } from 'lucide-react';
+import { LogOut, Sun, User, Headphones } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface LayoutProps {
@@ -18,6 +18,16 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Support Banner */}
+      <div className="relative z-30 bg-blue-600 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-center gap-2 py-2 text-sm font-medium">
+            <Headphones className="w-4 h-4 shrink-0" />
+            <span>Hỗ trợ phần mềm: Zalo 0375336663</span>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
       <header className="relative z-20 bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

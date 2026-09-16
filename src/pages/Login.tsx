@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Sun, Mail, Lock, User, ArrowLeft } from 'lucide-react';
+import { Sun, Mail, Lock, User, ArrowLeft, Headphones } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 
@@ -163,7 +163,16 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-yellow-50 px-4">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 to-yellow-50">
+      {/* Support Banner */}
+      <div className="bg-blue-600 text-white">
+        <div className="flex items-center justify-center gap-2 py-2 px-4 text-sm font-medium">
+          <Headphones className="w-4 h-4 shrink-0" />
+          <span>Hỗ trợ phần mềm: Zalo 0375336663</span>
+        </div>
+      </div>
+
+      <div className="flex-1 flex items-center justify-center px-4 py-8">
       <div className="max-w-md w-full">
         <div className="bg-white rounded-2xl shadow-xl p-8">
           {/* Logo */}
@@ -458,6 +467,7 @@ export function Login() {
             </form>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

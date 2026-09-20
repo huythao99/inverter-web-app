@@ -55,6 +55,65 @@ export interface DailyTotal {
   updatedAt?: string;
 }
 
+// ---- Charger (firmware tách biệt, prefix /api/charger-*) ----
+export interface ChargerDevice {
+  _id: string;
+  userId: string;
+  deviceId: string;      // dạng ChargerControl<N>
+  deviceName: string;
+  description?: string;
+  firmwareVersion?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// Snapshot realtime đã được backend giải mã từ khung raw ($TLM/$CFG/$INFO)
+export interface ChargerLatest {
+  userId: string;
+  deviceId: string;
+  status?: string;          // online/offline suy ra từ heartbeat
+  st?: string;              // trạng thái chạy (RUN/...)
+  flt?: string;             // mã lỗi (0 = ok)
+  lock?: string;
+  rtry?: string;
+  out?: string;             // BAT/...
+  mode?: string;            // MPPT/...
+  ms?: string;              // TRACK/...
+  temp?: string;            // nhiệt độ (°C)
+  // PV (đầu vào solar)
+  vpv?: string;
+  ipv?: string;
+  ppv?: string;
+  // Ắc quy / sạc
+  vbat?: string;
+  ibat?: string;
+  il?: string;
+  duty?: string;
+  vref?: string;
+  // Cấu hình đang áp dụng thật trên máy ($CFG)
+  cfgVbat?: string;
+  cfgIbat?: string;
+  cfgPbat?: string;
+  src?: string;             // ESP/LOCAL
+  cfgOut?: string;
+  // Thông tin thiết bị
+  fw?: string;
+  hw?: string;
+  raw?: string;
+  updatedAt?: string;
+}
+
+export interface ChargerSetting {
+  _id?: string;
+  userId: string;
+  deviceId: string;
+  value: string;            // chuỗi 8 số HHHHLLLL
+  vbat?: number;            // đã decode: HHHH / 10
+  ibat?: number;            // đã decode: LLLL / 10
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface UserProfile {
   uid: string;
   email?: string;

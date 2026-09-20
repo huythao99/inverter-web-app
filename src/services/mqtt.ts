@@ -141,3 +141,16 @@ export function buildStatusTopic(userId: string, deviceId: string): string {
 export function buildOtaStatusTopic(userId: string, deviceId: string): string {
   return `inverter/${userId}/${deviceId}/ota/status`;
 }
+
+// Charger topics (namespace tách biệt: charger/{uid}/{deviceId}/...)
+export function buildChargerDataTopic(userId: string, deviceId: string): string {
+  return `charger/${userId}/${deviceId}/data`;
+}
+
+export function buildChargerStatusTopic(userId: string, deviceId: string): string {
+  return `charger/${userId}/${deviceId}/status`;
+}
+
+export function buildChargerOtaStatusTopic(userId: string, deviceId: string): string {
+  return `charger/${userId}/${deviceId}/ota/status`;
+}

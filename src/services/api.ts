@@ -11,6 +11,9 @@ import type {
   MonthlyTotals,
   ChartDataPoint,
   GridTieStatus,
+  ChargerDevice,
+  ChargerLatest,
+  ChargerSetting,
 } from '../types';
 
 // In dev mode, use relative URL so Vite proxy can forward to VITE_API_URL
@@ -39,6 +42,33 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // Token expired or invalid, redirect to login
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Root API instance for endpoints outside the /api/user wrapper
+// (charger firmware is a separate service under /api/charger-*).
+const rootApi = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+rootApi.interceptors.request.use(async (config) => {
+  const token = await getIdToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+rootApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
       window.location.href = '/login';
     }
     return Promise.reject(error);
@@ -228,6 +258,106 @@ export const triggerFirmwareUpdate = async (
   deviceId: string
 ): Promise<{ success: boolean }> => {
   const response = await api.post(`/devices/${deviceId}/firmware/update`);
+  return response.data;
+};
+
+// ============================================================
+// Charger (firmware tách biệt — prefix /api/charger-*)
+// Các endpoint dùng {uid}/{deviceId} trực tiếp, không qua /api/user.
+// ============================================================
+
+// Danh sách charger của user
+export const getChargerDevices = async (
+  userId: string
+): Promise<ChargerDevice[]> => {
+  const response = await rootApi.get(
+    `/api/charger-device/data/device/${userId}`
+  );
+  // Backend có thể trả mảng trực tiếp hoặc bọc { devices: [...] }
+  return response.data?.devices ?? response.data ?? [];
+};
+
+// Chi tiết 1 charger
+export const getChargerDevice = async (
+  userId: string,
+  deviceId: string
+): Promise<ChargerDevice> => {
+  const response = await rootApi.get(
+    `/api/charger-device/data/${userId}/${deviceId}`
+  );
+  return response.data;
+};
+
+// Snapshot realtime mới nhất (đã backend giải mã)
+export const getChargerLatest = async (
+  userId: string,
+  deviceId: string
+): Promise<ChargerLatest> => {
+  const response = await rootApi.get(
+    `/api/charger/data/${userId}/${deviceId}/latest`
+  );
+  return response.data;
+};
+
+// Đọc setting (kèm vbat/ibat đã decode)
+export const getChargerSetting = async (
+  userId: string,
+  deviceId: string
+): Promise<ChargerSetting> => {
+  const response = await rootApi.get(
+    `/api/charger-setting/data/${userId}/${deviceId}`
+  );
+  return response.data;
+};
+
+// Ghi setting thân thiện { vbat, ibat }. Backend tự publish cmd/settings.
+export const updateChargerSetting = async (
+  userId: string,
+  deviceId: string,
+  data: { vbat: number; ibat: number }
+): Promise<ChargerSetting> => {
+  const response = await rootApi.patch(
+    `/api/charger-setting/data/${userId}/${deviceId}`,
+    data
+  );
+  return response.data;
+};
+
+// Đổi tên / ghi chú
+export const updateChargerDescription = async (
+  userId: string,
+  deviceId: string,
+  data: { deviceName?: string; description?: string }
+): Promise<ChargerDevice> => {
+  const response = await rootApi.patch(
+    `/api/charger-device/data/${userId}/${deviceId}/description`,
+    data
+  );
+  return response.data;
+};
+
+export const deleteChargerDevice = async (
+  userId: string,
+  deviceId: string
+): Promise<void> => {
+  await rootApi.delete(`/api/charger-device/data/${userId}/${deviceId}`);
+};
+
+// Firmware
+export const getChargerFirmwareVersion = async (
+  userId: string,
+  deviceId: string
+): Promise<{ firmwareVersion?: string; version?: string }> => {
+  const response = await rootApi.get('/api/charger-firmware/version', {
+    params: { userId, deviceId },
+  });
+  return response.data;
+};
+
+export const getChargerNewestFirmware = async (): Promise<{
+  version?: string;
+}> => {
+  const response = await rootApi.get('/api/charger-firmware/newest');
   return response.data;
 };
 

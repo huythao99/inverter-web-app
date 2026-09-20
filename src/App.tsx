@@ -5,6 +5,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { DeviceDetail } from './pages/DeviceDetail';
+import { ChargerDetail } from './pages/ChargerDetail';
 import { AddDevice } from './pages/AddDevice';
 
 const queryClient = new QueryClient({
@@ -36,6 +37,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <DeviceDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/chargers/:deviceId"
+              element={
+                <ProtectedRoute>
+                  <ChargerDetail />
                 </ProtectedRoute>
               }
             />

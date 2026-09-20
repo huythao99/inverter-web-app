@@ -11,16 +11,26 @@ import {
   Loader2,
   Eye,
   EyeOff,
+  Cpu,
+  BatteryCharging,
 } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 
 type SetupStep = 1 | 2 | 3;
+type DeviceType = 'inverter' | 'charger';
+
+// SSID phát ra bởi AP của từng loại thiết bị
+const AP_SSID: Record<DeviceType, string> = {
+  inverter: 'GTIControl***',
+  charger: 'ChargerControl***',
+};
 
 export function AddDevice() {
   const { user } = useAuth();
   const [copied, setCopied] = useState(false);
   const [currentStep, setCurrentStep] = useState<SetupStep>(1);
+  const [deviceType, setDeviceType] = useState<DeviceType>('inverter');
   const [wifiSsid, setWifiSsid] = useState('');
   const [wifiPassword, setWifiPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -31,6 +41,7 @@ export function AddDevice() {
   const [safariUrl, setSafariUrl] = useState('');
 
   const userId = user?.uid || '';
+  const apSsid = AP_SSID[deviceType];
 
   const copyToClipboard = async () => {
     try {
@@ -199,7 +210,7 @@ export function AddDevice() {
       console.error('Failed to configure device:', error);
       setSubmitStatus('error');
       setErrorMessage(
-        'Không thể kết nối với thiết bị. Hãy chắc chắn bạn đã kết nối với mạng WiFi "GTIControl***".'
+        `Không thể kết nối với thiết bị. Hãy chắc chắn bạn đã kết nối với mạng WiFi "${apSsid}".`
       );
     } finally {
       setIsSubmitting(false);
@@ -219,7 +230,9 @@ export function AddDevice() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Thêm thiết bị mới</h1>
-            <p className="text-gray-500">Cấu hình thiết bị inverter ESP32 của bạn</p>
+            <p className="text-gray-500">
+              Cấu hình thiết bị {deviceType === 'charger' ? 'sạc (charger)' : 'inverter'} của bạn
+            </p>
           </div>
         </div>
 
@@ -252,6 +265,49 @@ export function AddDevice() {
           {/* Step 1: Prepare */}
           {currentStep === 1 && (
             <div className="space-y-6">
+              {/* Device type selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Loại thiết bị
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setDeviceType('inverter')}
+                    className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-colors text-left ${
+                      deviceType === 'inverter'
+                        ? 'border-blue-600 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Cpu className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">Inverter</p>
+                      <p className="text-xs text-gray-500">Hoà lưới</p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeviceType('charger')}
+                    className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-colors text-left ${
+                      deviceType === 'charger'
+                        ? 'border-blue-600 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="p-2 bg-green-100 rounded-lg">
+                      <BatteryCharging className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">Charger</p>
+                      <p className="text-xs text-gray-500">Bộ sạc</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               <div className="text-center">
                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Wifi className="w-8 h-8 text-blue-600" />
@@ -297,7 +353,7 @@ export function AddDevice() {
                   <li>Bật nguồn thiết bị ESP32</li>
                   <li>Mở cài đặt WiFi trên điện thoại/máy tính</li>
                   <li>
-                    Kết nối với mạng: <strong>"GTIControl***"</strong>
+                    Kết nối với mạng: <strong>"{apSsid}"</strong>
                   </li>
                   <li>Quay lại trang này sau khi kết nối</li>
                 </ol>
@@ -314,7 +370,7 @@ export function AddDevice() {
                 onClick={() => setCurrentStep(2)}
                 className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
               >
-                Tôi đã kết nối GTIControl***
+                Tôi đã kết nối {apSsid}
               </button>
             </div>
           )}

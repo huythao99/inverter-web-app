@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -14,22 +14,17 @@ import {
   Sun,
   BatteryCharging,
   Thermometer,
-  Trash2,
   AlertTriangle,
 } from 'lucide-react';
 import { useChargerMqtt } from '../hooks/useChargerMqtt';
 import { Layout } from '../components/Layout';
-import { useAuth } from '../contexts/AuthContext';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import {
   getChargerDevice,
   getChargerLatest,
   getChargerSetting,
   updateChargerSetting,
-  updateChargerDescription,
-  deleteChargerDevice,
-  getChargerFirmwareVersion,
-  getChargerNewestFirmware,
+  updateChargerDevice,
 } from '../services/api';
 import type { ChargerLatest } from '../types';
 
@@ -55,79 +50,52 @@ function fmt(n: number | null, digits = 2, unit = ''): string {
 
 export function ChargerDetail() {
   const { deviceId } = useParams<{ deviceId: string }>();
-  const { user } = useAuth();
-  const userId = user?.uid || '';
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [deviceName, setDeviceName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const { isDeviceOnline } = useChargerMqtt(deviceId);
 
   const deviceQuery = useQuery({
-    queryKey: ['charger-device', userId, deviceId],
-    queryFn: () => getChargerDevice(userId, deviceId!),
-    enabled: !!userId && !!deviceId,
+    queryKey: ['charger-device', deviceId],
+    queryFn: () => getChargerDevice(deviceId!),
+    enabled: !!deviceId,
   });
 
   // Giá trị khởi tạo từ REST; sau đó useChargerMqtt đẩy dữ liệu mới vào cache
   // (cùng cơ chế với inverter — không refetch định kỳ).
   const latestQuery = useQuery({
     queryKey: ['charger-latest', deviceId],
-    queryFn: () => getChargerLatest(userId, deviceId!),
-    enabled: !!userId && !!deviceId,
+    queryFn: () => getChargerLatest(deviceId!),
+    enabled: !!deviceId,
   });
 
   const settingQuery = useQuery({
-    queryKey: ['charger-setting', userId, deviceId],
-    queryFn: () => getChargerSetting(userId, deviceId!),
-    enabled: !!userId && !!deviceId && activeTab === 'settings',
-  });
-
-  const firmwareQuery = useQuery({
-    queryKey: ['charger-firmware-version', userId, deviceId],
-    queryFn: () => getChargerFirmwareVersion(userId, deviceId!),
-    enabled: !!userId && !!deviceId && activeTab === 'settings',
-  });
-
-  const newestFirmwareQuery = useQuery({
-    queryKey: ['charger-firmware-newest'],
-    queryFn: () => getChargerNewestFirmware(),
-    enabled: activeTab === 'settings',
+    queryKey: ['charger-setting', deviceId],
+    queryFn: () => getChargerSetting(deviceId!),
+    enabled: !!deviceId && activeTab === 'settings',
   });
 
   const updateSettingMutation = useMutation({
     mutationFn: (data: { vbat: number; ibat: number }) =>
-      updateChargerSetting(userId, deviceId!, data),
+      updateChargerSetting(deviceId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ['charger-setting', userId, deviceId],
+        queryKey: ['charger-setting', deviceId],
       });
     },
   });
 
   const updateNameMutation = useMutation({
     mutationFn: (name: string) =>
-      updateChargerDescription(userId, deviceId!, {
-        deviceName: name,
-        description: name,
-      }),
+      updateChargerDevice(deviceId!, { deviceName: name }),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ['charger-device', userId, deviceId],
+        queryKey: ['charger-device', deviceId],
       });
       setIsEditingName(false);
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: () => deleteChargerDevice(userId, deviceId!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['charger-devices', userId] });
-      navigate('/');
     },
   });
 
@@ -217,48 +185,7 @@ export function ChargerDetail() {
             )}
             <ChargerStatusIndicator isOnline={isDeviceOnline} />
           </div>
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="p-2 hover:bg-red-100 rounded-lg transition-colors text-red-600 flex-shrink-0"
-            title="Xóa thiết bị"
-          >
-            <Trash2 className="w-5 h-5" />
-          </button>
         </div>
-
-        {/* Delete Confirmation Modal */}
-        {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 max-w-sm mx-4 shadow-xl">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Xóa bộ sạc?
-              </h3>
-              <p className="text-gray-600 mb-6">
-                Bạn có chắc chắn muốn xóa "{device?.deviceName || deviceId}"? Hành
-                động này không thể hoàn tác.
-              </p>
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-                >
-                  Hủy
-                </button>
-                <button
-                  onClick={() => deleteMutation.mutate()}
-                  disabled={deleteMutation.isPending}
-                  className="flex-1 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center"
-                >
-                  {deleteMutation.isPending ? (
-                    <LoadingSpinner size="sm" className="text-white" />
-                  ) : (
-                    'Xóa'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Tabs */}
         <div className="border-b border-gray-200">
@@ -301,11 +228,7 @@ export function ChargerDetail() {
               error={settingQuery.error}
               onRetry={() => settingQuery.refetch()}
               onSave={(data) => updateSettingMutation.mutate(data)}
-              currentFirmware={
-                firmwareQuery.data?.firmwareVersion ||
-                firmwareQuery.data?.version
-              }
-              newestFirmware={newestFirmwareQuery.data?.version}
+              currentFirmware={device?.firmwareVersion}
             />
           )}
         </div>
@@ -545,7 +468,6 @@ function ChargerSettingsTab({
   onRetry,
   onSave,
   currentFirmware,
-  newestFirmware,
 }: {
   vbat?: number;
   ibat?: number;
@@ -556,7 +478,6 @@ function ChargerSettingsTab({
   onRetry: () => void;
   onSave: (data: { vbat: number; ibat: number }) => void;
   currentFirmware?: string;
-  newestFirmware?: string;
 }) {
   const [vbatInput, setVbatInput] = useState('54.0');
   const [ibatInput, setIbatInput] = useState('20.0');
@@ -762,19 +683,6 @@ function ChargerSettingsTab({
             </div>
             <span className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-600">
               {currentFirmware || '---'}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <BatteryCharging className="w-5 h-5 text-purple-600" />
-              </div>
-              <span className="text-sm font-medium text-gray-700">
-                Phiên bản mới nhất
-              </span>
-            </div>
-            <span className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-600">
-              {newestFirmware || '---'}
             </span>
           </div>
         </div>

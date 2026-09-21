@@ -27,7 +27,7 @@ export function Dashboard() {
 
   const chargerQuery = useQuery({
     queryKey: ['charger-devices', user?.uid],
-    queryFn: () => getChargerDevices(user!.uid),
+    queryFn: () => getChargerDevices(),
     enabled: !!user?.uid,
   });
 

@@ -55,7 +55,7 @@ export interface DailyTotal {
   updatedAt?: string;
 }
 
-// ---- Charger (firmware tách biệt, prefix /api/charger-*) ----
+// ---- Charger (Web người dùng cuối dùng bộ /api/user/chargers/*, Firebase JWT) ----
 export interface ChargerDevice {
   _id: string;
   userId: string;

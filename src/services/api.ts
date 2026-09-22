@@ -195,10 +195,13 @@ export const getDeviceChartData = async (
 export const getDailyTotalsToday = async (
   deviceId: string
 ): Promise<{ totalA: number; totalA2: number }> => {
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const today = new Date();
-  const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
   const response = await api.get(`/devices/${deviceId}/daily-totals`, {
-    params: { startDate: dateStr, endDate: dateStr },
+    params: { startDate: fmt(yesterday), endDate: fmt(today) },
   });
   const records: DailyTotal[] = response.data.data || [];
   const record = records[0];

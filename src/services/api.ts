@@ -198,12 +198,14 @@ export const getDailyTotalsToday = async (
   const today = new Date();
   const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const response = await api.get(`/devices/${deviceId}/daily-totals`, {
-    params: { startDate: dateStr, endDate: dateStr, limit: 10 },
+    params: { startDate: dateStr, endDate: dateStr },
   });
   const records: DailyTotal[] = response.data.data || [];
-  const totalA = records.reduce((sum: number, r: DailyTotal) => sum + (r.totalA || 0), 0);
-  const totalA2 = records.reduce((sum: number, r: DailyTotal) => sum + (r.totalA2 || 0), 0);
-  return { totalA, totalA2 };
+  const record = records[0];
+  return {
+    totalA: record?.totalA || 0,
+    totalA2: record?.totalA2 || 0,
+  };
 };
 
 // Calculate Daily Totals (like mobile app)

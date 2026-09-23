@@ -219,6 +219,14 @@ export const calculateDailyTotals = async (
   return response.data;
 };
 
+// Remote restart (ESP32 reboot via MQTT). Backend allows 1 request/device/minute.
+export const restartDevice = async (
+  deviceId: string
+): Promise<{ message: string; requestId: string; cooldownSeconds: number }> => {
+  const response = await api.post(`/devices/${deviceId}/restart`);
+  return response.data;
+};
+
 // Firmware
 export const getDeviceFirmwareVersion = async (
   deviceId: string

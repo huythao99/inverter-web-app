@@ -24,6 +24,7 @@ import {
   MapPin,
   MonitorSmartphone,
   Cpu,
+  RotateCcw,
 } from 'lucide-react';
 import { useQuery as useRCQuery } from '@tanstack/react-query';
 import { fetchSupportConfig } from '../services/remoteConfig';
@@ -47,6 +48,7 @@ import {
   deleteDevice,
   getLatestFirmwareVersion,
   triggerFirmwareUpdate,
+  restartDevice,
 } from '../services/api';
 
 type TabType = 'overview' | 'settings' | 'schedule' | 'support';
@@ -62,6 +64,8 @@ export function DeviceDetail() {
   const [deviceName, setDeviceName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showRestartConfirm, setShowRestartConfirm] = useState(false);
+  const [restartNotice, setRestartNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
   // MQTT for real-time data
   const { isDeviceOnline } = useDeviceMqtt(deviceId);
@@ -161,6 +165,33 @@ export function DeviceDetail() {
       setIsEditingName(false);
     },
   });
+
+  const restartDeviceMutation = useMutation({
+    mutationFn: () => restartDevice(deviceId!),
+    onSuccess: () => {
+      setShowRestartConfirm(false);
+      setRestartNotice({
+        ok: true,
+        text: isDeviceOnline
+          ? 'Đã gửi lệnh, thiết bị sẽ khởi động lại trong vài giây.'
+          : 'Đã gửi lệnh, nhưng thiết bị đang offline nên có thể không nhận được.',
+      });
+    },
+    onError: (error: any) => {
+      setShowRestartConfirm(false);
+      setRestartNotice({
+        ok: false,
+        text: error?.response?.data?.message || 'Không thể gửi lệnh khởi động lại.',
+      });
+    },
+  });
+
+  // Auto-hide the restart result banner.
+  useEffect(() => {
+    if (!restartNotice) return;
+    const t = setTimeout(() => setRestartNotice(null), 6000);
+    return () => clearTimeout(t);
+  }, [restartNotice]);
 
   const deleteDeviceMutation = useMutation({
     mutationFn: () => deleteDevice(user!.uid, deviceId!),
@@ -268,6 +299,13 @@ export function DeviceDetail() {
             <DeviceStatusIndicator isOnline={isDeviceOnline} />
           </div>
           <button
+            onClick={() => setShowRestartConfirm(true)}
+            className="p-2 hover:bg-blue-100 rounded-lg transition-colors text-blue-600 flex-shrink-0"
+            title="Khởi động lại thiết bị"
+          >
+            <RotateCcw className="w-5 h-5" />
+          </button>
+          <button
             onClick={() => setShowDeleteConfirm(true)}
             className="p-2 hover:bg-red-100 rounded-lg transition-colors text-red-600 flex-shrink-0"
             title="Xóa thiết bị"
@@ -275,6 +313,52 @@ export function DeviceDetail() {
             <Trash2 className="w-5 h-5" />
           </button>
         </div>
+
+        {restartNotice && (
+          <div
+            className={`rounded-lg px-4 py-3 text-sm ${
+              restartNotice.ok
+                ? 'bg-green-50 border border-green-200 text-green-700'
+                : 'bg-red-50 border border-red-200 text-red-700'
+            }`}
+          >
+            {restartNotice.text}
+          </div>
+        )}
+
+        {/* Restart Confirmation Modal */}
+        {showRestartConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 max-w-sm mx-4 shadow-xl">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Khởi động lại thiết bị?
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Bộ điều khiển "{device?.deviceName || deviceId}" sẽ khởi động lại và mất
+                kết nối khoảng 30 giây. Cài đặt và lịch hẹn giờ được giữ nguyên.
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowRestartConfirm(false)}
+                  className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={() => restartDeviceMutation.mutate()}
+                  disabled={restartDeviceMutation.isPending}
+                  className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center"
+                >
+                  {restartDeviceMutation.isPending ? (
+                    <LoadingSpinner size="sm" className="text-white" />
+                  ) : (
+                    'Khởi động lại'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (

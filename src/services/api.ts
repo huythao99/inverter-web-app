@@ -191,24 +191,24 @@ export const getDeviceChartData = async (
   return response.data;
 };
 
-// Today's daily totals (single day, filtered by today's date)
+// Today's daily totals (single GMT+7 day). Only today's rows are requested,
+// so yesterday's value can never be shown as "today" when today has no data yet.
 export const getDailyTotalsToday = async (
   deviceId: string
 ): Promise<{ totalA: number; totalA2: number }> => {
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
+  // Server days are GMT+7 regardless of the browser's timezone.
+  const today = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
   const response = await api.get(`/devices/${deviceId}/daily-totals`, {
-    params: { startDate: fmt(yesterday), endDate: fmt(today) },
+    params: { startDate: today, endDate: today },
   });
   const records: DailyTotal[] = response.data.data || [];
-  const record = records[0];
-  return {
-    totalA: record?.totalA || 0,
-    totalA2: record?.totalA2 || 0,
-  };
+  return records.reduce(
+    (acc, r) => ({
+      totalA: acc.totalA + (r.totalA || 0),
+      totalA2: acc.totalA2 + (r.totalA2 || 0),
+    }),
+    { totalA: 0, totalA2: 0 }
+  );
 };
 
 // Calculate Daily Totals (like mobile app)

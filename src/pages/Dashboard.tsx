@@ -7,6 +7,7 @@ import { DeviceCard } from '../components/DeviceCard';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { getDevices, getChargerDevices } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useDevicesOnline } from '../hooks/useDevicesOnline';
 
 type TabType = 'inverter' | 'charger';
 
@@ -41,6 +42,10 @@ export function Dashboard() {
   ];
 
   const activeList = activeTab === 'inverter' ? inverters : chargers;
+
+  // Live online/offline badges (one wildcard MQTT subscription per kind).
+  const inverterOnline = useDevicesOnline('inverter', inverters.map((d) => d.deviceId));
+  const chargerOnline = useDevicesOnline('charger', chargers.map((d) => d.deviceId));
 
   return (
     <Layout>
@@ -160,10 +165,20 @@ export function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {activeTab === 'inverter'
               ? inverters.map((device) => (
-                  <DeviceCard key={device._id} device={device} variant="inverter" />
+                  <DeviceCard
+                    key={device._id}
+                    device={device}
+                    variant="inverter"
+                    online={inverterOnline[device.deviceId] ?? 'checking'}
+                  />
                 ))
               : chargers.map((device) => (
-                  <DeviceCard key={device._id} device={device} variant="charger" />
+                  <DeviceCard
+                    key={device._id}
+                    device={device}
+                    variant="charger"
+                    online={chargerOnline[device.deviceId] ?? 'checking'}
+                  />
                 ))}
           </div>
         )}

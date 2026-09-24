@@ -10,10 +10,7 @@ import {
 } from '../services/mqtt';
 import { auth } from '../services/firebase';
 import type { ChargerLatest } from '../types';
-
-// Timeout để đánh dấu charger offline (giống inverter hook)
-const DEVICE_OFFLINE_TIMEOUT = 15000; // 15s
-const RECONNECT_GRACE_PERIOD = 15000;
+import { useOnlineTracker } from './useOnlineTracker';
 
 interface UseChargerMqttResult {
   data: ChargerLatest | null;
@@ -92,24 +89,11 @@ export function useChargerMqtt(
 ): UseChargerMqttResult {
   const queryClient = useQueryClient();
   const [data, setData] = useState<ChargerLatest | null>(null);
-  const [isDeviceOnline, setIsDeviceOnline] = useState(false);
+  // Online/offline: cùng quy tắc với app mobile (xem useOnlineTracker).
+  const { isOnline: isDeviceOnline, markSeen, trackConnection } = useOnlineTracker(deviceId);
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>('disconnected');
   const subscribedTopicsRef = useRef<string[]>([]);
-  const offlineTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const resetOfflineTimeout = useCallback(
-    (timeout: number = DEVICE_OFFLINE_TIMEOUT) => {
-      setIsDeviceOnline(true);
-      if (offlineTimeoutRef.current) {
-        clearTimeout(offlineTimeoutRef.current);
-      }
-      offlineTimeoutRef.current = setTimeout(() => {
-        setIsDeviceOnline(false);
-      }, timeout);
-    },
-    []
-  );
 
   const handleMessage = useCallback(
     (topic: string, message: Buffer) => {
@@ -146,13 +130,13 @@ export function useChargerMqtt(
           (prev) => updater(prev)
         );
 
-        resetOfflineTimeout();
+        markSeen();
       } else if (topic === statusTopic) {
         // Heartbeat JSON { "status": "online" }
-        resetOfflineTimeout();
+        markSeen();
       }
     },
-    [deviceId, queryClient, resetOfflineTimeout]
+    [deviceId, queryClient, markSeen]
   );
 
   useEffect(() => {
@@ -195,6 +179,8 @@ export function useChargerMqtt(
     const unsubscribeStatus = onConnectionStatusChange((status) => {
       if (!mounted) return;
       setConnectionStatus(status);
+      // Grace khi mất/kết nối lại MQTT; không bao giờ tự đặt "online".
+      trackConnection(status);
 
       if (status === 'connected') {
         if (subscribedTopicsRef.current.length > 0) {
@@ -202,13 +188,6 @@ export function useChargerMqtt(
             .then((client) => client.subscribe(subscribedTopicsRef.current))
             .catch(console.error);
         }
-        resetOfflineTimeout(RECONNECT_GRACE_PERIOD);
-      } else if (status === 'disconnected') {
-        if (offlineTimeoutRef.current) {
-          clearTimeout(offlineTimeoutRef.current);
-          offlineTimeoutRef.current = null;
-        }
-        setIsDeviceOnline(false);
       }
     });
 
@@ -216,11 +195,6 @@ export function useChargerMqtt(
       mounted = false;
       unsubscribeStatus();
       unsubscribeMessage();
-
-      if (offlineTimeoutRef.current) {
-        clearTimeout(offlineTimeoutRef.current);
-        offlineTimeoutRef.current = null;
-      }
 
       const topics = subscribedTopicsRef.current;
       subscribedTopicsRef.current = [];
@@ -230,7 +204,7 @@ export function useChargerMqtt(
           .catch(() => {});
       }
     };
-  }, [deviceId, handleMessage, resetOfflineTimeout]);
+  }, [deviceId, handleMessage, trackConnection]);
 
   return {
     data,

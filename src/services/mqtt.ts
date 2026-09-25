@@ -1,10 +1,23 @@
 import mqtt, { MqttClient } from 'mqtt';
+import { getMqttCredentials } from './api';
+import { auth } from './firebase';
 
-// MQTT broker configuration
-// For browser, we need WebSocket connection (ws:// or wss://)
-const MQTT_BROKER_URL = import.meta.env.VITE_MQTT_BROKER_URL || 'ws://giabao-inverter.com:9001';
-const MQTT_USERNAME = import.meta.env.VITE_MQTT_USERNAME || 'giabao';
-const MQTT_PASSWORD = import.meta.env.VITE_MQTT_PASSWORD || '0918273645';
+// MQTT broker over WebSocket. Production: wss://giabao-inverter.com/mqtt
+// (nginx -> mosquitto 9001), so the account below never travels in clear.
+const MQTT_BROKER_URL = import.meta.env.VITE_MQTT_BROKER_URL || 'wss://giabao-inverter.com/mqtt';
+
+// Broker account of the signed-in user (read-only, own devices), issued by
+// the backend. Nothing secret is built into the web bundle any more.
+let credentials: { uid: string; username: string; password: string } | null = null;
+
+async function credentialsForCurrentUser(): Promise<{ username: string; password: string }> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+  if (credentials?.uid === uid) return credentials;
+  const res = await getMqttCredentials();
+  credentials = { uid, ...res };
+  return credentials;
+}
 
 let client: MqttClient | null = null;
 let connectionPromise: Promise<MqttClient> | null = null;
@@ -64,13 +77,22 @@ export async function getMqttClient(): Promise<MqttClient> {
 async function connectMqtt(): Promise<MqttClient> {
   notifyStatusChange('connecting');
 
+  let account: { username: string; password: string };
+  try {
+    account = await credentialsForCurrentUser();
+  } catch (err) {
+    connectionPromise = null;
+    notifyStatusChange('disconnected');
+    throw err;
+  }
+
   return new Promise((resolve, reject) => {
     const clientId = `web_${Math.random().toString(16).substring(2, 10)}`;
 
     client = mqtt.connect(MQTT_BROKER_URL, {
       clientId,
-      username: MQTT_USERNAME,
-      password: MQTT_PASSWORD,
+      username: account.username,
+      password: account.password,
       clean: true,
       reconnectPeriod: 5000,
       connectTimeout: 10000,
@@ -117,6 +139,7 @@ async function connectMqtt(): Promise<MqttClient> {
 }
 
 export function disconnectMqtt(): void {
+  credentials = null;   // next user gets their own account
   if (client) {
     client.end();
     client = null;

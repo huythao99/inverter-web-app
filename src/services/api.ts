@@ -73,13 +73,15 @@ export const updateDevice = async (
   return response.data;
 };
 
-export const deleteDevice = async (userId: string, deviceId: string): Promise<void> => {
-  const token = await getIdToken();
-  await axios.delete(`${API_URL}/api/inverter-device/data/${userId}/${deviceId}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+// userId is kept for the callers' signature; the backend takes it from the token.
+export const deleteDevice = async (_userId: string, deviceId: string): Promise<void> => {
+  await api.delete(`/devices/${deviceId}`);
+};
+
+// Broker account of the signed-in user (read-only, own devices).
+export const getMqttCredentials = async (): Promise<{ username: string; password: string }> => {
+  const response = await api.get('/mqtt-credentials');
+  return response.data;
 };
 
 // Device Settings

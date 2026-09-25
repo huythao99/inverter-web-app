@@ -14,6 +14,7 @@ import {
   signOut as firebaseSignOut,
   onAuthChange,
 } from '../services/firebase';
+import { disconnectMqtt } from '../services/mqtt';
 
 interface AuthContextType {
   user: User | null;
@@ -32,7 +33,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let lastUid: string | null = null;
     const unsubscribe = onAuthChange((firebaseUser) => {
+      // The broker account belongs to one user: drop the connection when the
+      // signed-in user changes (sign-out / another account).
+      const uid = firebaseUser?.uid ?? null;
+      if (lastUid && uid !== lastUid) disconnectMqtt();
+      lastUid = uid;
       setUser(firebaseUser);
       setLoading(false);
     });

@@ -29,6 +29,9 @@ import {
 import { useQuery as useRCQuery } from '@tanstack/react-query';
 import { fetchSupportConfig } from '../services/remoteConfig';
 import { useDeviceMqtt } from '../hooks/useDeviceMqtt';
+import { useOtaStatus } from '../hooks/useOtaStatus';
+import { StmFirmwareSection } from '../components/StmFirmwareSection';
+import type { OtaStatus } from '../hooks/useOtaStatus';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -47,6 +50,7 @@ import {
   updateDevice,
   deleteDevice,
   getLatestFirmwareVersion,
+  getDeviceFirmwareVersion,
   triggerFirmwareUpdate,
   restartDevice,
 } from '../services/api';
@@ -69,6 +73,9 @@ export function DeviceDetail() {
 
   // MQTT for real-time data
   const { isDeviceOnline } = useDeviceMqtt(deviceId);
+  // Live OTA progress (inverter/{uid}/{deviceId}/ota/status)
+  const { ota, reset: resetOta } = useOtaStatus(deviceId);
+  const [firmwareNotice, setFirmwareNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Queries
   const deviceQuery = useQuery({
@@ -104,17 +111,50 @@ export function DeviceDetail() {
   });
 
   const latestFirmwareQuery = useQuery({
-    queryKey: ['latest-firmware'],
-    queryFn: () => getLatestFirmwareVersion(),
-    enabled: activeTab === 'settings',
+    queryKey: ['latest-firmware', deviceId],
+    queryFn: () => getLatestFirmwareVersion(deviceId),
+    enabled: !!deviceId && activeTab === 'settings',
+  });
+
+  // Version as the backend sees it (legacy devices = always up to date).
+  const currentFirmwareQuery = useQuery({
+    queryKey: ['device-firmware', deviceId],
+    queryFn: () => getDeviceFirmwareVersion(deviceId!),
+    enabled: !!deviceId && activeTab === 'settings',
   });
 
   const firmwareUpdateMutation = useMutation({
     mutationFn: () => triggerFirmwareUpdate(deviceId!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['device', deviceId] });
+    onMutate: () => {
+      resetOta();
+      setFirmwareNotice(null);
+    },
+    onSuccess: (res) => {
+      setFirmwareNotice({
+        ok: true,
+        text: `Đã gửi lệnh cập nhật lên ${res.targetVersion}, đang chờ thiết bị phản hồi...`,
+      });
+    },
+    onError: (err) => {
+      const message = (err as { response?: { data?: { message?: string } } })
+        ?.response?.data?.message;
+      setFirmwareNotice({ ok: false, text: message || 'Không gửi được lệnh cập nhật' });
     },
   });
+
+  // Device answered: drop the "waiting" notice; after success the ESP32
+  // reboots and re-reports its version, so refresh it a bit later.
+  useEffect(() => {
+    if (!ota) return;
+    setFirmwareNotice(null);
+    if (ota.status === 'success') {
+      const t = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['device-firmware', deviceId] });
+        queryClient.invalidateQueries({ queryKey: ['device', deviceId] });
+      }, 30000);
+      return () => clearTimeout(t);
+    }
+  }, [ota, deviceId, queryClient]);
 
   const monthlyTotalsQuery = useQuery({
     queryKey: ['device-monthly-totals', deviceId],
@@ -443,14 +483,21 @@ export function DeviceDetail() {
               error={settingsQuery.error}
               onRetry={() => settingsQuery.refetch()}
               latestData={latestDataQuery.data}
-              currentFirmware={device?.firmwareVersion}
+              currentFirmware={currentFirmwareQuery.data?.firmwareVersion ?? device?.firmwareVersion}
               latestFirmware={latestFirmwareQuery.data?.version}
               onFirmwareUpdate={() => firmwareUpdateMutation.mutate()}
               isUpdatingFirmware={firmwareUpdateMutation.isPending}
+              firmwareNotice={firmwareNotice}
+              ota={ota}
               gridTieOff={gridTieOff}
               onToggleGridTie={(status) => gridTieMutation.mutate(status)}
               isTogglingGridTie={gridTieMutation.isPending || gridTieQuery.isLoading}
             />
+          )}
+          {activeTab === 'settings' && deviceId && (
+            <div className="mt-6">
+              <StmFirmwareSection deviceId={deviceId} />
+            </div>
           )}
 
           {activeTab === 'schedule' && (
@@ -765,6 +812,41 @@ function EnergyCol({
   );
 }
 
+const OTA_LABEL: Record<string, string> = {
+  starting: 'Đang bắt đầu',
+  started: 'Đang bắt đầu',
+  downloading: 'Đang tải firmware',
+  installing: 'Đang cài đặt',
+  progress: 'Đang cập nhật',
+  success: 'Cập nhật thành công, thiết bị đang khởi động lại',
+  failed: 'Cập nhật thất bại',
+};
+
+function OtaProgress({ ota }: { ota: OtaStatus }) {
+  const failed = ota.status === 'failed';
+  const done = ota.status === 'success';
+  const pct = done ? 100 : Math.max(0, Math.min(100, ota.progress ?? 0));
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-sm">
+        <span className={failed ? 'text-red-600' : done ? 'text-green-600' : 'text-gray-700'}>
+          {OTA_LABEL[ota.status] ?? ota.status}
+        </span>
+        {!failed && <span className="text-gray-500">{pct}%</span>}
+      </div>
+      {!failed && (
+        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div
+            className={`h-full transition-all ${done ? 'bg-green-500' : 'bg-blue-500'}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
+      {ota.message && <p className="text-xs text-gray-500">{ota.message}</p>}
+    </div>
+  );
+}
+
 // Device Status Indicator Component (online/offline based on MQTT message timeout)
 function DeviceStatusIndicator({ isOnline }: { isOnline: boolean }) {
   return (
@@ -851,6 +933,8 @@ function SettingsTab({
   latestFirmware,
   onFirmwareUpdate,
   isUpdatingFirmware,
+  firmwareNotice,
+  ota,
   gridTieOff,
   onToggleGridTie,
   isTogglingGridTie,
@@ -867,6 +951,8 @@ function SettingsTab({
   latestFirmware?: string;
   onFirmwareUpdate: () => void;
   isUpdatingFirmware: boolean;
+  firmwareNotice: { ok: boolean; text: string } | null;
+  ota: OtaStatus | null;
   gridTieOff: boolean;
   onToggleGridTie: (status: number) => void;
   isTogglingGridTie: boolean;
@@ -1140,6 +1226,14 @@ function SettingsTab({
               <span>Cập nhật</span>
             )}
           </button>
+
+          {/* Result of the request / live OTA progress from the device */}
+          {firmwareNotice && (
+            <p className={`text-sm ${firmwareNotice.ok ? 'text-blue-600' : 'text-red-600'}`}>
+              {firmwareNotice.text}
+            </p>
+          )}
+          {ota && <OtaProgress ota={ota} />}
         </div>
       </div>
 

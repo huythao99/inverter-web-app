@@ -219,6 +219,36 @@ export const calculateDailyTotals = async (
   return response.data;
 };
 
+// ---- STM32 power board firmware (FOTA through the ESP32) ----
+// STM32 version "major.voltage.patch": major = chip (3 = F303, 2 = G431),
+// 2nd number = voltage class (1 = 12V, 2 = 24V, 3 = 36V, 4 = 48V).
+export interface DeviceStmInfo {
+  version: string | null;
+  chip: string | null;
+  voltageCode: number | null;
+  voltage: string | null;
+  crc32: string | null;
+  reportedAt: string | null;
+  supported: boolean;
+  minEspVersion: string;
+  target: { version: string; voltage: string | null; crc32: string } | null;
+  updateAvailable: boolean;
+  reason: null | 'esp_firmware_too_old' | 'version_unknown' | 'no_firmware';
+  lastOta: { status: string; progress?: number | null; message?: string | null; at: string } | null;
+}
+
+export const getDeviceStm = async (deviceId: string): Promise<DeviceStmInfo> => {
+  const response = await api.get(`/devices/${deviceId}/stm`);
+  return response.data;
+};
+
+export const triggerStmUpdate = async (
+  deviceId: string
+): Promise<{ success: boolean; targetVersion: string; crc32: string }> => {
+  const response = await api.post(`/devices/${deviceId}/stm/update`);
+  return response.data;
+};
+
 // Remote restart (ESP32 reboot via MQTT). Backend allows 1 request/device/minute.
 export const restartDevice = async (
   deviceId: string
@@ -235,14 +265,19 @@ export const getDeviceFirmwareVersion = async (
   return response.data;
 };
 
-export const getLatestFirmwareVersion = async (): Promise<{ version: string }> => {
-  const response = await api.get('/firmware/newest');
+// deviceId: devices on the beta list get the beta version.
+export const getLatestFirmwareVersion = async (
+  deviceId?: string
+): Promise<{ version: string }> => {
+  const response = await api.get('/firmware/newest', {
+    params: deviceId ? { deviceId } : undefined,
+  });
   return response.data;
 };
 
 export const triggerFirmwareUpdate = async (
   deviceId: string
-): Promise<{ success: boolean }> => {
+): Promise<{ success: boolean; currentVersion: string; targetVersion: string }> => {
   const response = await api.post(`/devices/${deviceId}/firmware/update`);
   return response.data;
 };

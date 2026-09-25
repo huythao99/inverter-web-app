@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -16,25 +21,56 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-
+          command_timeout: 15m
           script: |
-            set -e
-
+            set -euo pipefail
             cd /var/www/inverter-web-app
 
-            echo "Pull latest code..."
-            git pull origin main
+            STEP="start"
+            on_error() {
+              code=$?
+              echo "::error::Web deploy FAILED at step: $STEP (exit $code)"
+              echo "The site keeps serving the previous build (dist/ untouched)."
+              rm -rf dist.new
+              exit $code
+            }
+            trap on_error ERR
 
-            echo "Install web dependencies..."
+            STEP="check .env.production"
+            if [ ! -f .env.production ]; then
+              echo "::error::.env.production is missing on the VPS"
+              false
+            fi
+            # MQTT credentials must NOT be baked into the public JS bundle:
+            # the web fetches its own read-only account from the API.
+            if grep -qE '^VITE_MQTT_(USERNAME|PASSWORD)=.+' .env.production; then
+              echo "::error::.env.production still has VITE_MQTT_USERNAME/PASSWORD - remove them (they would be public in the bundle)"
+              false
+            fi
+
+            STEP="git pull"
+            git pull --ff-only origin main
+            echo "Deploying $(git rev-parse --short HEAD)"
+
+            STEP="npm ci"
             npm ci
 
-            echo "Build web..."
-            npm run build
-            
-            echo "Check Nginx configuration..."
-            sudo nginx -t
+            STEP="build"
+            # Build into dist.new: a failed build never empties the live dist/.
+            rm -rf dist.new
+            npx tsc -b
+            npx vite build --outDir dist.new --emptyOutDir
+            test -f dist.new/index.html
 
-            echo "Reload Nginx..."
+            STEP="switch to new build"
+            rm -rf dist.prev
+            [ -d dist ] && mv dist dist.prev
+            mv dist.new dist
+
+            STEP="nginx reload"
+            sudo nginx -t
             sudo systemctl restart nginx
 
+            rm -rf dist.prev
+            trap - ERR
             echo "Deploy completed!"

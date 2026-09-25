@@ -8,6 +8,7 @@ import {
   Settings,
   Clock,
   BarChart3,
+  BarChart2,
   Save,
   RefreshCw,
   Zap,
@@ -29,6 +30,7 @@ import { useQuery as useRCQuery } from '@tanstack/react-query';
 import { fetchSupportConfig } from '../services/remoteConfig';
 import { useDeviceMqtt } from '../hooks/useDeviceMqtt';
 import { FirmwareSection } from '../components/FirmwareSection';
+import { EnergyChart } from '../components/EnergyChart';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -49,7 +51,7 @@ import {
   restartDevice,
 } from '../services/api';
 
-type TabType = 'overview' | 'settings' | 'schedule' | 'support';
+type TabType = 'overview' | 'chart' | 'settings' | 'schedule' | 'support';
 
 export function DeviceDetail() {
   const { deviceId } = useParams<{ deviceId: string }>();
@@ -207,6 +209,7 @@ export function DeviceDetail() {
 
   const tabs = [
     { id: 'overview', label: 'Tổng quan', icon: BarChart3 },
+    { id: 'chart', label: 'Biểu đồ', icon: BarChart2 },
     { id: 'settings', label: 'Cài đặt', icon: Settings },
     { id: 'schedule', label: 'Lịch trình', icon: Clock },
     { id: 'support', label: 'Hỗ trợ', icon: HeadphonesIcon },
@@ -417,6 +420,8 @@ export function DeviceDetail() {
               isRefreshing={latestDataQuery.isRefetching}
             />
           )}
+
+          {activeTab === 'chart' && deviceId && <EnergyChart deviceId={deviceId} />}
 
           {activeTab === 'settings' && (
             <SettingsTab

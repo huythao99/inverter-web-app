@@ -13,7 +13,6 @@ import {
   Zap,
   Plug,
   Activity,
-  TrendingUp,
   Plus,
   X,
   WifiOff,
@@ -29,9 +28,7 @@ import {
 import { useQuery as useRCQuery } from '@tanstack/react-query';
 import { fetchSupportConfig } from '../services/remoteConfig';
 import { useDeviceMqtt } from '../hooks/useDeviceMqtt';
-import { useOtaStatus } from '../hooks/useOtaStatus';
-import { StmFirmwareSection } from '../components/StmFirmwareSection';
-import type { OtaStatus } from '../hooks/useOtaStatus';
+import { FirmwareSection } from '../components/FirmwareSection';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -49,9 +46,6 @@ import {
   updateDeviceSchedule,
   updateDevice,
   deleteDevice,
-  getLatestFirmwareVersion,
-  getDeviceFirmwareVersion,
-  triggerFirmwareUpdate,
   restartDevice,
 } from '../services/api';
 
@@ -73,9 +67,6 @@ export function DeviceDetail() {
 
   // MQTT for real-time data
   const { isDeviceOnline } = useDeviceMqtt(deviceId);
-  // Live OTA progress (inverter/{uid}/{deviceId}/ota/status)
-  const { ota, reset: resetOta } = useOtaStatus(deviceId);
-  const [firmwareNotice, setFirmwareNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Queries
   const deviceQuery = useQuery({
@@ -109,52 +100,6 @@ export function DeviceDetail() {
     queryFn: () => getLatestDeviceData(deviceId!),
     enabled: !!deviceId && (activeTab === 'overview' || activeTab === 'settings'),
   });
-
-  const latestFirmwareQuery = useQuery({
-    queryKey: ['latest-firmware', deviceId],
-    queryFn: () => getLatestFirmwareVersion(deviceId),
-    enabled: !!deviceId && activeTab === 'settings',
-  });
-
-  // Version as the backend sees it (legacy devices = always up to date).
-  const currentFirmwareQuery = useQuery({
-    queryKey: ['device-firmware', deviceId],
-    queryFn: () => getDeviceFirmwareVersion(deviceId!),
-    enabled: !!deviceId && activeTab === 'settings',
-  });
-
-  const firmwareUpdateMutation = useMutation({
-    mutationFn: () => triggerFirmwareUpdate(deviceId!),
-    onMutate: () => {
-      resetOta();
-      setFirmwareNotice(null);
-    },
-    onSuccess: (res) => {
-      setFirmwareNotice({
-        ok: true,
-        text: `Đã gửi lệnh cập nhật lên ${res.targetVersion}, đang chờ thiết bị phản hồi...`,
-      });
-    },
-    onError: (err) => {
-      const message = (err as { response?: { data?: { message?: string } } })
-        ?.response?.data?.message;
-      setFirmwareNotice({ ok: false, text: message || 'Không gửi được lệnh cập nhật' });
-    },
-  });
-
-  // Device answered: drop the "waiting" notice; after success the ESP32
-  // reboots and re-reports its version, so refresh it a bit later.
-  useEffect(() => {
-    if (!ota) return;
-    setFirmwareNotice(null);
-    if (ota.status === 'success') {
-      const t = setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['device-firmware', deviceId] });
-        queryClient.invalidateQueries({ queryKey: ['device', deviceId] });
-      }, 30000);
-      return () => clearTimeout(t);
-    }
-  }, [ota, deviceId, queryClient]);
 
   const monthlyTotalsQuery = useQuery({
     queryKey: ['device-monthly-totals', deviceId],
@@ -483,12 +428,6 @@ export function DeviceDetail() {
               error={settingsQuery.error}
               onRetry={() => settingsQuery.refetch()}
               latestData={latestDataQuery.data}
-              currentFirmware={currentFirmwareQuery.data?.firmwareVersion ?? device?.firmwareVersion}
-              latestFirmware={latestFirmwareQuery.data?.version}
-              onFirmwareUpdate={() => firmwareUpdateMutation.mutate()}
-              isUpdatingFirmware={firmwareUpdateMutation.isPending}
-              firmwareNotice={firmwareNotice}
-              ota={ota}
               gridTieOff={gridTieOff}
               onToggleGridTie={(status) => gridTieMutation.mutate(status)}
               isTogglingGridTie={gridTieMutation.isPending || gridTieQuery.isLoading}
@@ -496,7 +435,11 @@ export function DeviceDetail() {
           )}
           {activeTab === 'settings' && deviceId && (
             <div className="mt-6">
-              <StmFirmwareSection deviceId={deviceId} />
+              <FirmwareSection
+                deviceId={deviceId}
+                isOnline={isDeviceOnline}
+                reportedEspVersion={device?.firmwareVersion}
+              />
             </div>
           )}
 
@@ -812,41 +755,6 @@ function EnergyCol({
   );
 }
 
-const OTA_LABEL: Record<string, string> = {
-  starting: 'Đang bắt đầu',
-  started: 'Đang bắt đầu',
-  downloading: 'Đang tải firmware',
-  installing: 'Đang cài đặt',
-  progress: 'Đang cập nhật',
-  success: 'Cập nhật thành công, thiết bị đang khởi động lại',
-  failed: 'Cập nhật thất bại',
-};
-
-function OtaProgress({ ota }: { ota: OtaStatus }) {
-  const failed = ota.status === 'failed';
-  const done = ota.status === 'success';
-  const pct = done ? 100 : Math.max(0, Math.min(100, ota.progress ?? 0));
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between text-sm">
-        <span className={failed ? 'text-red-600' : done ? 'text-green-600' : 'text-gray-700'}>
-          {OTA_LABEL[ota.status] ?? ota.status}
-        </span>
-        {!failed && <span className="text-gray-500">{pct}%</span>}
-      </div>
-      {!failed && (
-        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div
-            className={`h-full transition-all ${done ? 'bg-green-500' : 'bg-blue-500'}`}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      )}
-      {ota.message && <p className="text-xs text-gray-500">{ota.message}</p>}
-    </div>
-  );
-}
-
 // Device Status Indicator Component (online/offline based on MQTT message timeout)
 function DeviceStatusIndicator({ isOnline }: { isOnline: boolean }) {
   return (
@@ -899,26 +807,6 @@ function parseRealTimeSettings(value: string): { vBattReal: number; pMaxReal: nu
   }
 }
 
-// Compare firmware versions
-function compareVersions(current: string, latest: string): number {
-  if (!current || !latest) return 0;
-  try {
-    const currentParts = current.split('.').map(Number);
-    const latestParts = latest.split('.').map(Number);
-    const maxLength = Math.max(currentParts.length, latestParts.length);
-
-    for (let i = 0; i < maxLength; i++) {
-      const c = currentParts[i] || 0;
-      const l = latestParts[i] || 0;
-      if (c < l) return -1;
-      if (c > l) return 1;
-    }
-    return 0;
-  } catch {
-    return 0;
-  }
-}
-
 // Settings Tab Component
 function SettingsTab({
   value,
@@ -929,12 +817,6 @@ function SettingsTab({
   error,
   onRetry,
   latestData,
-  currentFirmware,
-  latestFirmware,
-  onFirmwareUpdate,
-  isUpdatingFirmware,
-  firmwareNotice,
-  ota,
   gridTieOff,
   onToggleGridTie,
   isTogglingGridTie,
@@ -947,12 +829,6 @@ function SettingsTab({
   error: Error | null;
   onRetry: () => void;
   latestData?: { value: string } | null;
-  currentFirmware?: string;
-  latestFirmware?: string;
-  onFirmwareUpdate: () => void;
-  isUpdatingFirmware: boolean;
-  firmwareNotice: { ok: boolean; text: string } | null;
-  ota: OtaStatus | null;
   gridTieOff: boolean;
   onToggleGridTie: (status: number) => void;
   isTogglingGridTie: boolean;
@@ -973,7 +849,6 @@ function SettingsTab({
 
   // Get real-time values from latest data
   const realTimeValues = parseRealTimeSettings(latestData?.value || '');
-  const isUpdateAvailable = compareVersions(currentFirmware || '', latestFirmware || '') < 0;
 
   const validateVBatt = (val: string): boolean => {
     const num = parseFloat(val);
@@ -1177,63 +1052,6 @@ function SettingsTab({
               <span className="text-sm text-gray-500 w-8">(W)</span>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Firmware Section */}
-      <div className="bg-gray-50 rounded-xl p-4 shadow-sm">
-        <h4 className="text-base font-semibold text-gray-900 mb-4">Phiên bản</h4>
-        <div className="border-t border-gray-200 pt-4 space-y-4">
-          {/* Current version */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Settings className="w-5 h-5 text-green-600" />
-              </div>
-              <span className="text-sm font-medium text-gray-700">Phiên bản hiện tại</span>
-            </div>
-            <span className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-600">
-              {currentFirmware || '---'}
-            </span>
-          </div>
-
-          {/* Latest version */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <TrendingUp className="w-5 h-5 text-purple-600" />
-              </div>
-              <span className="text-sm font-medium text-gray-700">Phiên bản mới</span>
-            </div>
-            <span className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-600">
-              {latestFirmware || '---'}
-            </span>
-          </div>
-
-          {/* Update button */}
-          <button
-            onClick={onFirmwareUpdate}
-            disabled={!isUpdateAvailable || isUpdatingFirmware}
-            className={`w-full py-3 rounded-xl font-semibold transition-colors flex items-center justify-center space-x-2 ${
-              isUpdateAvailable
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
-          >
-            {isUpdatingFirmware ? (
-              <LoadingSpinner size="sm" className="text-white" />
-            ) : (
-              <span>Cập nhật</span>
-            )}
-          </button>
-
-          {/* Result of the request / live OTA progress from the device */}
-          {firmwareNotice && (
-            <p className={`text-sm ${firmwareNotice.ok ? 'text-blue-600' : 'text-red-600'}`}>
-              {firmwareNotice.text}
-            </p>
-          )}
-          {ota && <OtaProgress ota={ota} />}
         </div>
       </div>
 

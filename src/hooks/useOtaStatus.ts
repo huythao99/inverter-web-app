@@ -3,10 +3,18 @@ import { getMqttClient, onMessage, buildOtaStatusTopic } from '../services/mqtt'
 import { auth } from '../services/firebase';
 
 export interface OtaStatus {
-  /** Raw status from the ESP32: starting | downloading | installing | success | failed */
+  /**
+   * Raw status from the ESP32.
+   * ESP32 OTA: starting | downloading | installing | success | failed
+   * STM32:     starting | downloading | verifying | flashing | success | failed | rescue_needed
+   */
   status: string;
   progress?: number;
   message?: string;
+  /** STM32: version flashed / running (success). */
+  version?: string;
+  /** Date.now() when received. */
+  at: number;
 }
 
 /**
@@ -38,6 +46,8 @@ export function useOtaStatus(
           status: data.status,
           progress: typeof data.progress === 'number' ? data.progress : undefined,
           message: typeof data.message === 'string' ? data.message : undefined,
+          version: typeof data.version === 'string' ? data.version : undefined,
+          at: Date.now(),
         });
       } catch {
         // ignore malformed payloads

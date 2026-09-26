@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Sun, Mail, Lock, User, ArrowLeft, Headphones } from 'lucide-react';
+import { Sun, Mail, Lock, User, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { SupportBanner } from '../components/SupportBanner';
 
 type AuthMode = 'login' | 'register' | 'forgot-password';
 
@@ -164,23 +165,17 @@ export function Login() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 to-yellow-50">
-      {/* Support Banner */}
-      <div className="bg-blue-600 text-white">
-        <div className="flex items-center justify-center gap-2 py-2 px-4 text-sm font-medium">
-          <Headphones className="w-4 h-4 shrink-0" />
-          <span>Hỗ trợ phần mềm: Zalo 0375336663</span>
-        </div>
-      </div>
+      <SupportBanner />
 
-      <div className="flex-1 flex items-center justify-center px-4 py-8">
+      <div className="flex-1 flex items-center justify-center px-4 py-6 sm:py-10">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+        <div className="bg-white rounded-2xl shadow-xl p-5 sm:p-8">
           {/* Logo */}
           <div className="flex flex-col items-center mb-6">
-            <div className="p-4 bg-yellow-100 rounded-full mb-4">
-              <Sun className="w-12 h-12 text-yellow-500" />
+            <div className="p-3 sm:p-4 bg-yellow-100 rounded-full mb-3 sm:mb-4">
+              <Sun className="w-10 h-10 sm:w-12 sm:h-12 text-yellow-500" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
               Giabao Inverter
             </h1>
             <p className="text-gray-500 mt-2 text-center text-sm">
@@ -225,6 +220,7 @@ export function Login() {
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type="email"
+                      autoComplete="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -245,7 +241,8 @@ export function Login() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Nhập mật khẩu của bạn"
+                      placeholder="Nhập mật khẩu"
+                      autoComplete="current-password"
                       required
                     />
                   </div>
@@ -335,6 +332,7 @@ export function Login() {
                       onChange={(e) => setDisplayName(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Nhập tên của bạn"
+                      autoComplete="name"
                     />
                   </div>
                 </div>
@@ -347,6 +345,7 @@ export function Login() {
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type="email"
+                      autoComplete="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -368,6 +367,7 @@ export function Login() {
                       onChange={(e) => setPassword(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Tạo mật khẩu"
+                      autoComplete="new-password"
                       required
                     />
                   </div>
@@ -384,7 +384,8 @@ export function Login() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Xác nhận mật khẩu của bạn"
+                      placeholder="Nhập lại mật khẩu"
+                      autoComplete="new-password"
                       required
                     />
                   </div>
@@ -448,6 +449,7 @@ export function Login() {
                   <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
                     type="email"
+                      autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"

@@ -51,21 +51,22 @@ export function Dashboard() {
     <Layout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Thiết bị của tôi</h1>
-            <p className="text-gray-500 mt-1">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Thiết bị của tôi</h1>
+            <p className="text-sm sm:text-base text-gray-500 mt-1">
               Quản lý và giám sát các thiết bị inverter và bộ sạc
             </p>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center gap-3 shrink-0">
             <button
               onClick={() => {
                 refetch();
                 chargerQuery.refetch();
               }}
               disabled={isRefetching || chargerQuery.isRefetching}
-              className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              aria-label="Làm mới"
+              className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 whitespace-nowrap bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               <RefreshCw
                 className={`w-4 h-4 ${isRefetching || chargerQuery.isRefetching ? 'animate-spin' : ''}`}
@@ -74,7 +75,7 @@ export function Dashboard() {
             </button>
             <Link
               to="/add-device"
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 whitespace-nowrap bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Plus className="w-4 h-4" />
               <span>Thêm thiết bị</span>
@@ -137,7 +138,7 @@ export function Dashboard() {
             </button>
           </div>
         ) : activeList.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 sm:p-12 text-center">
             {activeTab === 'inverter' ? (
               <Cpu className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             ) : (
@@ -162,7 +163,7 @@ export function Dashboard() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
             {activeTab === 'inverter'
               ? inverters.map((device) => (
                   <DeviceCard

@@ -14,6 +14,8 @@ import type {
   ChargerDevice,
   ChargerLatest,
   ChargerSetting,
+  EnergyReport,
+  ActivityPage,
 } from '../types';
 
 // In dev mode, use relative URL so Vite proxy can forward to VITE_API_URL
@@ -190,6 +192,31 @@ export const getDeviceChartData = async (
   const response = await api.get(`/devices/${deviceId}/chart-data`, {
     params: { year, month },
   });
+  return response.data;
+};
+
+// Monthly report: kWh turned into money with the EVN tariff.
+export const getEnergyReport = async (
+  deviceId: string,
+  year: number,
+  month: number,
+  tariff: 'tiered' | 'flat' = 'tiered'
+): Promise<EnergyReport> => {
+  const response = await api.get(`/devices/${deviceId}/energy-report`, {
+    params: { year, month, tariff },
+  });
+  return response.data;
+};
+
+// Settings / schedule / grid-tie change history (newest first).
+export const getDeviceActivity = async (
+  deviceId: string,
+  before?: string,
+  kind: 'inverter' | 'charger' = 'inverter'
+): Promise<ActivityPage> => {
+  const path =
+    kind === 'charger' ? `/chargers/${deviceId}/activity` : `/devices/${deviceId}/activity`;
+  const response = await api.get(path, { params: { before, limit: 30 } });
   return response.data;
 };
 

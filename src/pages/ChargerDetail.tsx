@@ -15,7 +15,9 @@ import {
   BatteryCharging,
   Thermometer,
   AlertTriangle,
+  History,
 } from 'lucide-react';
+import { ActivityLog } from '../components/ActivityLog';
 import { useChargerMqtt } from '../hooks/useChargerMqtt';
 import { Layout } from '../components/Layout';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -28,7 +30,7 @@ import {
 } from '../services/api';
 import type { ChargerLatest } from '../types';
 
-type TabType = 'overview' | 'settings';
+type TabType = 'overview' | 'settings' | 'history';
 
 // ---- Helpers cho giá trị chuỗi từ snapshot (có thể là "NAN") ----
 function num(v?: string): number | null {
@@ -108,6 +110,7 @@ export function ChargerDetail() {
   const tabs = [
     { id: 'overview', label: 'Tổng quan', icon: BarChart3 },
     { id: 'settings', label: 'Cài đặt', icon: Settings },
+    { id: 'history', label: 'Lịch sử', icon: History },
   ];
 
   if (deviceQuery.isLoading) {
@@ -230,6 +233,10 @@ export function ChargerDetail() {
               onSave={(data) => updateSettingMutation.mutate(data)}
               currentFirmware={device?.firmwareVersion}
             />
+          )}
+
+          {activeTab === 'history' && deviceId && (
+            <ActivityLog deviceId={deviceId} kind="charger" />
           )}
         </div>
       </div>

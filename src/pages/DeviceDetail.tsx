@@ -25,7 +25,9 @@ import {
   MonitorSmartphone,
   Cpu,
   RotateCcw,
+  History,
 } from 'lucide-react';
+import { ActivityLog } from '../components/ActivityLog';
 import { useQuery as useRCQuery } from '@tanstack/react-query';
 import { fetchSupportConfig } from '../services/remoteConfig';
 import { useDeviceMqtt } from '../hooks/useDeviceMqtt';
@@ -51,7 +53,7 @@ import {
   restartDevice,
 } from '../services/api';
 
-type TabType = 'overview' | 'chart' | 'settings' | 'schedule' | 'support';
+type TabType = 'overview' | 'chart' | 'settings' | 'schedule' | 'history' | 'support';
 
 export function DeviceDetail() {
   const { deviceId } = useParams<{ deviceId: string }>();
@@ -212,6 +214,7 @@ export function DeviceDetail() {
     { id: 'chart', label: 'Biểu đồ', icon: BarChart2 },
     { id: 'settings', label: 'Cài đặt', icon: Settings },
     { id: 'schedule', label: 'Lịch trình', icon: Clock },
+    { id: 'history', label: 'Lịch sử', icon: History },
     { id: 'support', label: 'Hỗ trợ', icon: HeadphonesIcon },
   ];
 
@@ -460,6 +463,8 @@ export function DeviceDetail() {
               gridTieOff={gridTieOff}
             />
           )}
+
+          {activeTab === 'history' && deviceId && <ActivityLog deviceId={deviceId} />}
 
           {activeTab === 'support' && <SupportTab />}
         </div>

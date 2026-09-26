@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { getDeviceChartData } from '../services/api';
 import { LoadingSpinner } from './LoadingSpinner';
+import { EnergyReportCard } from './EnergyReportCard';
 
 // Monthly energy chart of an inverter (same data as the mobile "Biểu đồ"
 // page: GET /api/user/devices/:id/chart-data). One stacked column per day:
@@ -152,6 +153,7 @@ export function EnergyChart({ deviceId }: { deviceId: string }) {
         <Stat label="Tiêu thụ" value={sumDischarge + sumGrid} />
       </div>
 
+
       {query.isLoading ? (
         <div className="flex justify-center py-16">
           <LoadingSpinner size="lg" />
@@ -172,6 +174,8 @@ export function EnergyChart({ deviceId }: { deviceId: string }) {
       ) : (
         <DaysTable rows={rows} />
       )}
+
+      <EnergyReportCard deviceId={deviceId} year={ym.year} month={ym.month} />
     </div>
   );
 }

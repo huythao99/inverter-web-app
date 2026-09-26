@@ -169,3 +169,52 @@ export interface WebSocketOtaStatus {
   progress?: number;
   error?: string;
 }
+
+// ---- Energy report (kWh -> tiền theo giá EVN) ----
+export interface MonthEnergy {
+  year: number;
+  month: number;
+  days: number;
+  generatedKwh: number;
+  gridKwh: number;
+  consumptionKwh: number;
+  selfSufficiency: number;
+  billWithoutSolar: number;
+  billWithSolar: number;
+  savings: number;
+}
+
+export interface EnergyReport extends MonthEnergy {
+  tariff: {
+    mode: 'tiered' | 'flat';
+    tiers: { size: number; price: number }[];
+    flatPrice: number | null;
+    vatPercent: number;
+    source: string;
+  };
+  bestDay: { date: string; kwh: number } | null;
+  partial: boolean;
+  previousMonth: MonthEnergy;
+  sameMonthLastYear: MonthEnergy;
+  yearToDate: { generatedKwh: number; savings: number; months: number };
+}
+
+// ---- Activity (settings / schedule / grid-tie change history) ----
+export interface ActivityEntry {
+  _id: string;
+  deviceId: string;
+  kind: 'inverter' | 'charger';
+  action: 'settings' | 'schedule' | 'grid-tie';
+  source: 'app' | 'web' | 'cms' | 'api' | 'system';
+  actor: string | null;
+  actorLabel: string | null;
+  summary: string;
+  before: string | null;
+  after: string | null;
+  createdAt: string;
+}
+
+export interface ActivityPage {
+  data: ActivityEntry[];
+  nextBefore: string | null;
+}

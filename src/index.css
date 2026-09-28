@@ -8,3 +8,18 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Charger energy flow: dot travelling along a link. */
+@keyframes energy-flow {
+  from { left: 0; opacity: 0.2; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  to { left: calc(100% - 10px); opacity: 0.2; }
+}
+.energy-flow-dot {
+  transform: translateY(-50%);
+  animation: energy-flow 1.4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .energy-flow-dot { animation: none; left: calc(50% - 5px); }
+}

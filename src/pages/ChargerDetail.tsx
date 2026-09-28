@@ -29,6 +29,7 @@ import {
   updateChargerDevice,
 } from '../services/api';
 import type { ChargerLatest } from '../types';
+import { ChargerEnergyFlow } from '../components/ChargerEnergyFlow';
 
 type TabType = 'overview' | 'settings' | 'history';
 
@@ -214,6 +215,7 @@ export function ChargerDetail() {
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-white/60 p-4 sm:p-6">
           {activeTab === 'overview' && (
             <ChargerOverviewTab
+              online={isDeviceOnline}
               latest={latestQuery.data}
               isLoading={latestQuery.isLoading}
               onRefresh={() => latestQuery.refetch()}
@@ -298,11 +300,13 @@ function InfoRow({
 // ---- Overview Tab ----
 function ChargerOverviewTab({
   latest,
+  online,
   isLoading,
   onRefresh,
   isRefreshing,
 }: {
   latest?: ChargerLatest;
+  online: boolean;
   isLoading: boolean;
   onRefresh: () => void;
   isRefreshing: boolean;
@@ -336,6 +340,8 @@ function ChargerOverviewTab({
       </div>
 
       <LocalSourceNotice src={latest.src} />
+
+      <ChargerEnergyFlow latest={latest} online={online} />
 
       {/* Trạng thái */}
       <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-white/60 p-4 space-y-3">

@@ -20,7 +20,7 @@ interface UseChargerMqttResult {
 }
 
 // Parse khung STM32 RAW "$TLM,DEV=MPPT,ST=RUN,...*4E" → { type, KEY: VALUE, ... }
-function parseFrame(raw: string): Record<string, string> | null {
+export function parseFrame(raw: string): Record<string, string> | null {
   if (!raw || raw[0] !== '$') return null;
   const star = raw.lastIndexOf('*');
   const body = raw.slice(1, star === -1 ? undefined : star);
@@ -36,7 +36,7 @@ function parseFrame(raw: string): Record<string, string> | null {
 // Map khung đã parse → các trường của ChargerLatest (theo từng loại TYPE).
 // VBAT/IBAT/OUT xuất hiện ở cả TLM lẫn CFG nhưng map sang trường khác nhau,
 // nên phải map theo TYPE rồi merge vào snapshot đang có.
-function frameToLatest(kv: Record<string, string>): Partial<ChargerLatest> {
+export function frameToLatest(kv: Record<string, string>): Partial<ChargerLatest> {
   switch (kv.type) {
     case 'TLM':
       return {
@@ -85,7 +85,9 @@ function frameToLatest(kv: Record<string, string>): Partial<ChargerLatest> {
  * từng loại rồi merge (undefined được lược bỏ để không ghi đè trường cũ).
  */
 export function useChargerMqtt(
-  deviceId: string | undefined
+  deviceId: string | undefined,
+  /** Owner uid in the topics (device shared by someone else). */
+  topicUid?: string
 ): UseChargerMqttResult {
   const queryClient = useQueryClient();
   const [data, setData] = useState<ChargerLatest | null>(null);
@@ -97,7 +99,7 @@ export function useChargerMqtt(
 
   const handleMessage = useCallback(
     (topic: string, message: Buffer) => {
-      const userId = auth.currentUser?.uid;
+      const userId = topicUid || auth.currentUser?.uid;
       if (!userId || !deviceId) return;
 
       const dataTopic = buildChargerDataTopic(userId, deviceId);
@@ -136,13 +138,13 @@ export function useChargerMqtt(
         markSeen();
       }
     },
-    [deviceId, queryClient, markSeen]
+    [deviceId, topicUid, queryClient, markSeen]
   );
 
   useEffect(() => {
     if (!deviceId) return;
 
-    const userId = auth.currentUser?.uid;
+    const userId = topicUid || auth.currentUser?.uid;
     if (!userId) return;
 
     let mounted = true;
@@ -204,7 +206,7 @@ export function useChargerMqtt(
           .catch(() => {});
       }
     };
-  }, [deviceId, handleMessage, trackConnection]);
+  }, [deviceId, topicUid, handleMessage, trackConnection]);
 
   return {
     data,

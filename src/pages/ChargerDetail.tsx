@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -16,8 +16,14 @@ import {
   Thermometer,
   AlertTriangle,
   History,
+  Share2,
+  Eye,
 } from 'lucide-react';
 import { ActivityLog } from '../components/ActivityLog';
+import { ShareDialog } from '../components/ShareDialog';
+import { useViewAccess, type ViewAccess } from '../services/viewAccess';
+import { usePublicLiveStream } from '../hooks/usePublicLiveStream';
+import { useAuth } from '../contexts/AuthContext';
 import { useChargerMqtt } from '../hooks/useChargerMqtt';
 import { Layout } from '../components/Layout';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -51,15 +57,44 @@ function fmt(n: number | null, digits = 2, unit = ''): string {
   return `${n.toFixed(digits)}${unit ? ' ' + unit : ''}`;
 }
 
-export function ChargerDetail() {
-  const { deviceId } = useParams<{ deviceId: string }>();
+/** Latest data younger than this = charger online (public link, no MQTT). */
+const PUBLIC_ONLINE_MS = 90_000;
+
+interface ChargerDetailProps {
+  /** Opened from a public view link (no account): read-only, no MQTT. */
+  publicToken?: string;
+  publicDeviceId?: string;
+}
+
+export function ChargerDetail({ publicToken, publicDeviceId }: ChargerDetailProps = {}) {
+  const params = useParams<{ deviceId: string }>();
+  const deviceId = params.deviceId ?? publicDeviceId;
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const ownerParam = searchParams.get('owner');
+  const viewOwner = ownerParam && ownerParam !== user?.uid ? ownerParam : undefined;
+  const isPublic = !!publicToken;
+  const readOnly = isPublic || !!viewOwner;
+  const viewAccess: ViewAccess | null =
+    deviceId && publicToken
+      ? { kind: 'charger', deviceId, token: publicToken }
+      : deviceId && viewOwner
+        ? { kind: 'charger', deviceId, owner: viewOwner }
+        : null;
+  useViewAccess(viewAccess);
+  const [showShare, setShowShare] = useState(false);
+  // Public link: live data relayed by the server (SSE) instead of MQTT.
+  const live = usePublicLiveStream(publicToken, 'charger', isPublic ? deviceId : undefined);
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [deviceName, setDeviceName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
 
-  const { isDeviceOnline } = useChargerMqtt(deviceId);
+  const { isDeviceOnline: mqttOnline } = useChargerMqtt(
+    isPublic ? undefined : deviceId,
+    viewOwner
+  );
 
   const deviceQuery = useQuery({
     queryKey: ['charger-device', deviceId],
@@ -73,7 +108,16 @@ export function ChargerDetail() {
     queryKey: ['charger-latest', deviceId],
     queryFn: () => getChargerLatest(deviceId!),
     enabled: !!deviceId,
+    // Fallback only: live data arrives through the public stream.
+    refetchInterval: isPublic ? 60_000 : false,
   });
+
+  const latestAt = latestQuery.data?.updatedAt
+    ? new Date(latestQuery.data.updatedAt).getTime()
+    : 0;
+  const isDeviceOnline = isPublic
+    ? live.isOnline || (latestAt > 0 && Date.now() - latestAt < PUBLIC_ONLINE_MS)
+    : mqttOnline;
 
   const settingQuery = useQuery({
     queryKey: ['charger-setting', deviceId],
@@ -111,7 +155,7 @@ export function ChargerDetail() {
   const tabs = [
     { id: 'overview', label: 'Tổng quan', icon: BarChart3 },
     { id: 'settings', label: 'Cài đặt', icon: Settings },
-    { id: 'history', label: 'Lịch sử', icon: History },
+    ...(isPublic ? [] : [{ id: 'history', label: 'Lịch sử', icon: History }]),
   ];
 
   if (deviceQuery.isLoading) {
@@ -128,13 +172,19 @@ export function ChargerDetail() {
     return (
       <Layout>
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <p className="text-red-600">Không thể tải thông tin bộ sạc</p>
-          <Link
-            to="/"
-            className="mt-4 inline-block px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-          >
-            Quay lại Bảng điều khiển
-          </Link>
+          <p className="text-red-600">
+            {readOnly
+              ? 'Không thể tải bộ sạc. Có thể quyền xem đã bị thu hồi.'
+              : 'Không thể tải thông tin bộ sạc'}
+          </p>
+          {!isPublic && (
+            <Link
+              to="/"
+              className="mt-4 inline-block px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+            >
+              Quay lại Bảng điều khiển
+            </Link>
+          )}
         </div>
       </Layout>
     );
@@ -155,14 +205,16 @@ export function ChargerDetail() {
       <div className="relative z-10 max-w-2xl mx-auto space-y-3 pb-8">
         {/* Header */}
         <div className="flex items-center space-x-3">
-          <Link
-            to="/"
-            className="p-2 hover:bg-white/50 rounded-lg transition-colors flex-shrink-0"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-700" />
-          </Link>
+          {!isPublic && (
+            <Link
+              to="/"
+              className="p-2 hover:bg-white/50 rounded-lg transition-colors flex-shrink-0"
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-700" />
+            </Link>
+          )}
           <div className="flex-1 min-w-0">
-            {isEditingName ? (
+            {isEditingName && !readOnly ? (
               <div className="flex items-center space-x-2">
                 <input
                   type="text"
@@ -181,15 +233,59 @@ export function ChargerDetail() {
               </div>
             ) : (
               <h1
-                className="text-lg font-bold text-gray-900 cursor-pointer hover:text-blue-600 truncate"
-                onClick={() => setIsEditingName(true)}
+                className={`text-lg font-bold text-gray-900 truncate ${
+                  readOnly ? '' : 'cursor-pointer hover:text-blue-600'
+                }`}
+                onClick={() => !readOnly && setIsEditingName(true)}
               >
                 {device?.deviceName || device?.deviceId}
               </h1>
             )}
-            <ChargerStatusIndicator isOnline={isDeviceOnline} />
+            <div className="flex items-center gap-2 flex-wrap">
+              <ChargerStatusIndicator isOnline={isDeviceOnline} />
+              {readOnly && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-medium">
+                  <Eye className="w-3 h-3" /> Chỉ xem
+                </span>
+              )}
+            </div>
           </div>
+          {!readOnly && (
+            <button
+              onClick={() => setShowShare(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-600 text-white text-sm font-medium shadow-sm hover:bg-blue-700 transition-colors flex-shrink-0"
+              title="Chia sẻ cho người khác xem (mời qua email hoặc tạo link)"
+          >
+              <Share2 className="w-4 h-4" />
+              <span>Chia sẻ</span>
+            </button>
+          )}
         </div>
+
+        {showShare && deviceId && (
+          <ShareDialog
+            kind="charger"
+            deviceId={deviceId}
+            deviceName={device?.deviceName}
+            onClose={() => setShowShare(false)}
+          />
+        )}
+
+        {readOnly && (
+          <div
+            className={`rounded-lg px-4 py-2.5 text-sm border ${
+              live.revoked
+                ? 'bg-red-50 border-red-200 text-red-700'
+                : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}
+          >
+            {live.revoked
+              ? 'Link xem đã bị chủ thiết bị thu hồi hoặc đổi. Số liệu không còn cập nhật.'
+              : isPublic
+              ? 'Bạn đang xem bộ sạc qua link chia sẻ. Chỉ được xem, không thể thay đổi cài đặt.'
+              : 'Bộ sạc được chia sẻ với bạn ở chế độ chỉ xem.'}
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="border-b border-gray-200">
@@ -223,6 +319,7 @@ export function ChargerDetail() {
             />
           )}
 
+          <fieldset disabled={readOnly} className="contents">
           {activeTab === 'settings' && (
             <ChargerSettingsTab
               vbat={settingQuery.data?.vbat}
@@ -236,8 +333,9 @@ export function ChargerDetail() {
               currentFirmware={device?.firmwareVersion}
             />
           )}
+          </fieldset>
 
-          {activeTab === 'history' && deviceId && (
+          {activeTab === 'history' && deviceId && !isPublic && (
             <ActivityLog deviceId={deviceId} kind="charger" />
           )}
         </div>

@@ -25,7 +25,14 @@ interface UseDeviceMqttResult {
   isConnected: boolean;
 }
 
-export function useDeviceMqtt(deviceId: string | undefined): UseDeviceMqttResult {
+/**
+ * @param topicUid owner uid used in the topics; defaults to the signed-in user
+ *                 (set it when viewing a device shared by someone else).
+ */
+export function useDeviceMqtt(
+  deviceId: string | undefined,
+  topicUid?: string
+): UseDeviceMqttResult {
   const queryClient = useQueryClient();
   const [data, setData] = useState<InverterData | null>(null);
   // Online/offline: same rules as the mobile app (see useOnlineTracker).
@@ -34,7 +41,7 @@ export function useDeviceMqtt(deviceId: string | undefined): UseDeviceMqttResult
   const subscribedTopicsRef = useRef<string[]>([]);
 
   const handleMessage = useCallback((topic: string, message: Buffer) => {
-    const userId = auth.currentUser?.uid;
+    const userId = topicUid || auth.currentUser?.uid;
     if (!userId || !deviceId) return;
 
     const dataTopic = buildDataTopic(userId, deviceId);
@@ -66,12 +73,12 @@ export function useDeviceMqtt(deviceId: string | undefined): UseDeviceMqttResult
     } catch (error) {
       console.error('Error parsing MQTT message:', error);
     }
-  }, [deviceId, queryClient, markSeen]);
+  }, [deviceId, topicUid, queryClient, markSeen]);
 
   useEffect(() => {
     if (!deviceId) return;
 
-    const userId = auth.currentUser?.uid;
+    const userId = topicUid || auth.currentUser?.uid;
     if (!userId) return;
 
     let mounted = true;
@@ -140,7 +147,7 @@ export function useDeviceMqtt(deviceId: string | undefined): UseDeviceMqttResult
         });
       }
     };
-  }, [deviceId, handleMessage, trackConnection]);
+  }, [deviceId, topicUid, handleMessage, trackConnection]);
 
   return {
     data,

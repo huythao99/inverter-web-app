@@ -1,11 +1,18 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Cpu, RefreshCw, Plus, BatteryCharging } from 'lucide-react';
+import { Cpu, RefreshCw, Plus, BatteryCharging, Eye } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { DeviceCard } from '../components/DeviceCard';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-import { getDevices, getChargerDevices } from '../services/api';
+import {
+  getDevices,
+  getChargerDevices,
+  getSharedWithMe,
+  leaveSharedDevice,
+  type SharedDevice,
+} from '../services/api';
+import { SharedDeviceCard } from '../components/SharedDeviceCard';
 import { useAuth } from '../contexts/AuthContext';
 import { useDevicesOnline } from '../hooks/useDevicesOnline';
 
@@ -32,6 +39,18 @@ export function Dashboard() {
     enabled: !!user?.uid,
   });
 
+  // Devices other people shared read-only with this account.
+  const queryClient = useQueryClient();
+  const sharedQuery = useQuery({
+    queryKey: ['shared-with-me', user?.uid],
+    queryFn: getSharedWithMe,
+    enabled: !!user?.uid,
+  });
+  const leaveMutation = useMutation({
+    mutationFn: (d: SharedDevice) => leaveSharedDevice(d),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['shared-with-me'] }),
+  });
+
   const chargers = chargerQuery.data ?? [];
   const inverters = data?.devices ?? [];
   const isLoadingAny = isLoading || chargerQuery.isLoading;
@@ -42,6 +61,7 @@ export function Dashboard() {
   ];
 
   const activeList = activeTab === 'inverter' ? inverters : chargers;
+  const sharedForTab = (sharedQuery.data?.devices ?? []).filter((d) => d.kind === activeTab);
 
   // Live online/offline badges (one wildcard MQTT subscription per kind).
   const inverterOnline = useDevicesOnline('inverter', inverters.map((d) => d.deviceId));
@@ -63,6 +83,7 @@ export function Dashboard() {
               onClick={() => {
                 refetch();
                 chargerQuery.refetch();
+                sharedQuery.refetch();
               }}
               disabled={isRefetching || chargerQuery.isRefetching}
               aria-label="Làm mới"
@@ -182,6 +203,31 @@ export function Dashboard() {
                   />
                 ))}
           </div>
+        )}
+
+        {/* Shared with me (read-only) */}
+        {!isLoadingAny && sharedForTab.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="flex items-center gap-2 text-base sm:text-lg font-semibold text-gray-900">
+              <Eye className="w-5 h-5 text-amber-600" />
+              Được chia sẻ với tôi
+              <span className="text-sm font-normal text-gray-500">({sharedForTab.length})</span>
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+              {sharedForTab.map((d) => (
+                <SharedDeviceCard
+                  key={`${d.ownerUid}/${d.kind}/${d.deviceId}`}
+                  device={d}
+                  leaving={leaveMutation.isPending}
+                  onLeave={(dev) => {
+                    if (window.confirm(`Bỏ theo dõi "${dev.deviceName || dev.deviceId}"?`)) {
+                      leaveMutation.mutate(dev);
+                    }
+                  }}
+                />
+              ))}
+            </div>
+          </section>
         )}
       </div>
     </Layout>

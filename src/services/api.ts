@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getIdToken } from './firebase';
+import { getViewAccess, isViewedDeviceUrl } from './viewAccess';
 import type {
   Device,
   DeviceSettings,
@@ -20,7 +21,7 @@ import type {
 
 // In dev mode, use relative URL so Vite proxy can forward to VITE_API_URL
 // In production, use VITE_API_URL directly
-const API_URL = import.meta.env.VITE_API_URL || '';
+export const API_URL = import.meta.env.VITE_API_URL || '';
 
 const api = axios.create({
   baseURL: `${API_URL}/api/user`,
@@ -29,8 +30,20 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to add Firebase token
+// Request interceptor to add Firebase token (or the read-only view headers
+// for a device shared with this user / opened from a public link).
 api.interceptors.request.use(async (config) => {
+  const view = getViewAccess();
+  if (view && isViewedDeviceUrl(config.url, view)) {
+    if ((config.method || 'get').toLowerCase() !== 'get') {
+      throw new Error('Bạn chỉ có quyền xem thiết bị này');
+    }
+    if (view.token) {
+      config.headers['X-View-Token'] = view.token;
+      return config; // anonymous: no Firebase token
+    }
+    if (view.owner) config.headers['X-View-Owner'] = view.owner;
+  }
   const token = await getIdToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -42,7 +55,7 @@ api.interceptors.request.use(async (config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !getViewAccess()?.token) {
       // Token expired or invalid, redirect to login
       window.location.href = '/login';
     }
@@ -364,5 +377,68 @@ export const updateChargerDevice = async (
   const response = await api.patch(`/chargers/${deviceId}`, data);
   return response.data;
 };
+
+// ---- Read-only sharing -------------------------------------------------
+
+export interface ShareViewer {
+  email: string;
+  joined: boolean;
+  lastSeenAt: string | null;
+  createdAt: string | null;
+}
+export interface DeviceSharing {
+  viewers: ShareViewer[];
+  link: { token: string; createdAt: string | null } | null;
+}
+export interface SharedDevice {
+  kind: 'inverter' | 'charger';
+  deviceId: string;
+  ownerUid: string;
+  deviceName: string;
+  description: string;
+}
+type Kind = 'inverter' | 'charger';
+const enc = encodeURIComponent;
+
+export const getSharedWithMe = async (): Promise<{
+  devices: SharedDevice[];
+  emailNotVerified: boolean;
+}> => (await api.get('/shared-with-me')).data;
+
+export const leaveSharedDevice = async (d: SharedDevice): Promise<void> => {
+  await api.delete(`/shared-with-me/${enc(d.ownerUid)}/${d.kind}/${enc(d.deviceId)}`);
+};
+
+export const getDeviceSharing = async (kind: Kind, deviceId: string): Promise<DeviceSharing> =>
+  (await api.get(`/viewers/${kind}/${enc(deviceId)}`)).data;
+
+export const addDeviceViewer = async (
+  kind: Kind,
+  deviceId: string,
+  email: string
+): Promise<DeviceSharing> => (await api.post(`/viewers/${kind}/${enc(deviceId)}`, { email })).data;
+
+export const removeDeviceViewer = async (
+  kind: Kind,
+  deviceId: string,
+  email: string
+): Promise<DeviceSharing> =>
+  (await api.delete(`/viewers/${kind}/${enc(deviceId)}/${enc(email)}`)).data;
+
+export const createViewLink = async (kind: Kind, deviceId: string): Promise<DeviceSharing> =>
+  (await api.post(`/viewers/${kind}/${enc(deviceId)}/link`)).data;
+
+export const deleteViewLink = async (kind: Kind, deviceId: string): Promise<DeviceSharing> =>
+  (await api.delete(`/viewers/${kind}/${enc(deviceId)}/link`)).data;
+
+/** Public link landing: which device it opens (no account needed). */
+export const getPublicView = async (
+  token: string
+): Promise<{ kind: Kind; deviceId: string; deviceName: string; description: string }> =>
+  (await axios.get(`${API_URL}/api/public/view/${enc(token)}`)).data;
+
+/** Full URL of a public view link (web route /app/v/:token). */
+export const viewLinkUrl = (token: string): string =>
+  `${window.location.origin}/app/v/${token}`;
 
 export default api;

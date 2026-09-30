@@ -7,6 +7,7 @@ import { Dashboard } from './pages/Dashboard';
 import { DeviceDetail } from './pages/DeviceDetail';
 import { ChargerDetail } from './pages/ChargerDetail';
 import { AddDevice } from './pages/AddDevice';
+import { PublicView } from './pages/PublicView';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,6 +25,8 @@ function App() {
         <BrowserRouter basename="/app">
           <Routes>
             <Route path="/login" element={<Login />} />
+            {/* Public read-only link: no login */}
+            <Route path="/v/:token" element={<PublicView />} />
             <Route
               path="/"
               element={

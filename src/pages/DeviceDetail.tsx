@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -26,8 +26,13 @@ import {
   Cpu,
   RotateCcw,
   History,
+  Share2,
+  Eye,
 } from 'lucide-react';
 import { ActivityLog } from '../components/ActivityLog';
+import { ShareDialog } from '../components/ShareDialog';
+import { useViewAccess, type ViewAccess } from '../services/viewAccess';
+import { usePublicLiveStream } from '../hooks/usePublicLiveStream';
 import { useQuery as useRCQuery } from '@tanstack/react-query';
 import { fetchSupportConfig } from '../services/remoteConfig';
 import { useDeviceMqtt } from '../hooks/useDeviceMqtt';
@@ -55,9 +60,35 @@ import {
 
 type TabType = 'overview' | 'chart' | 'settings' | 'schedule' | 'history' | 'support';
 
-export function DeviceDetail() {
-  const { deviceId } = useParams<{ deviceId: string }>();
+/** Latest data younger than this = device online (public link, no MQTT). */
+const PUBLIC_ONLINE_MS = 90_000;
+
+interface DeviceDetailProps {
+  /** Opened from a public view link (no account): read-only, no MQTT. */
+  publicToken?: string;
+  publicDeviceId?: string;
+}
+
+export function DeviceDetail({ publicToken, publicDeviceId }: DeviceDetailProps = {}) {
+  const params = useParams<{ deviceId: string }>();
+  const deviceId = params.deviceId ?? publicDeviceId;
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  // ?owner=<uid>: a device someone else shared read-only with this account.
+  const ownerParam = searchParams.get('owner');
+  const viewOwner = ownerParam && ownerParam !== user?.uid ? ownerParam : undefined;
+  const isPublic = !!publicToken;
+  const readOnly = isPublic || !!viewOwner;
+  const viewAccess: ViewAccess | null =
+    deviceId && publicToken
+      ? { kind: 'inverter', deviceId, token: publicToken }
+      : deviceId && viewOwner
+        ? { kind: 'inverter', deviceId, owner: viewOwner }
+        : null;
+  useViewAccess(viewAccess);
+  const [showShare, setShowShare] = useState(false);
+  // Public link: live data relayed by the server (SSE) instead of MQTT.
+  const live = usePublicLiveStream(publicToken, 'inverter', isPublic ? deviceId : undefined);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -69,8 +100,11 @@ export function DeviceDetail() {
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
   const [restartNotice, setRestartNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
-  // MQTT for real-time data
-  const { isDeviceOnline } = useDeviceMqtt(deviceId);
+  // MQTT for real-time data (not for public links: no account, polled instead)
+  const { isDeviceOnline: mqttOnline } = useDeviceMqtt(
+    isPublic ? undefined : deviceId,
+    viewOwner
+  );
 
   // Queries
   const deviceQuery = useQuery({
@@ -102,8 +136,18 @@ export function DeviceDetail() {
   const latestDataQuery = useQuery({
     queryKey: ['device-latest-data', deviceId],
     queryFn: () => getLatestDeviceData(deviceId!),
-    enabled: !!deviceId && (activeTab === 'overview' || activeTab === 'settings'),
+    enabled:
+      !!deviceId && (isPublic || activeTab === 'overview' || activeTab === 'settings'),
+    // Fallback only: live data arrives through the public stream.
+    refetchInterval: isPublic ? 60_000 : false,
   });
+
+  const latestAt = latestDataQuery.data?.updatedAt
+    ? new Date(latestDataQuery.data.updatedAt).getTime()
+    : 0;
+  const isDeviceOnline = isPublic
+    ? live.isOnline || (latestAt > 0 && Date.now() - latestAt < PUBLIC_ONLINE_MS)
+    : mqttOnline;
 
   const monthlyTotalsQuery = useQuery({
     queryKey: ['device-monthly-totals', deviceId],
@@ -214,7 +258,8 @@ export function DeviceDetail() {
     { id: 'chart', label: 'Biểu đồ', icon: BarChart2 },
     { id: 'settings', label: 'Cài đặt', icon: Settings },
     { id: 'schedule', label: 'Lịch trình', icon: Clock },
-    { id: 'history', label: 'Lịch sử', icon: History },
+    // Change history (who changed what) is never shown on a public link.
+    ...(isPublic ? [] : [{ id: 'history', label: 'Lịch sử', icon: History }]),
     { id: 'support', label: 'Hỗ trợ', icon: HeadphonesIcon },
   ];
 
@@ -232,13 +277,19 @@ export function DeviceDetail() {
     return (
       <Layout>
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <p className="text-red-600">Không thể tải thông tin thiết bị</p>
-          <Link
-            to="/"
-            className="mt-4 inline-block px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-          >
-            Quay lại Bảng điều khiển
-          </Link>
+          <p className="text-red-600">
+            {readOnly
+              ? 'Không thể tải thiết bị. Có thể quyền xem đã bị thu hồi.'
+              : 'Không thể tải thông tin thiết bị'}
+          </p>
+          {!isPublic && (
+            <Link
+              to="/"
+              className="mt-4 inline-block px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+            >
+              Quay lại Bảng điều khiển
+            </Link>
+          )}
         </div>
       </Layout>
     );
@@ -255,14 +306,16 @@ export function DeviceDetail() {
       <div className="relative z-10 max-w-2xl mx-auto space-y-3 pb-8">
         {/* Header */}
         <div className="flex items-center space-x-3">
-          <Link
-            to="/"
-            className="p-2 hover:bg-white/50 rounded-lg transition-colors flex-shrink-0"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-700" />
-          </Link>
+          {!isPublic && (
+            <Link
+              to="/"
+              className="p-2 hover:bg-white/50 rounded-lg transition-colors flex-shrink-0"
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-700" />
+            </Link>
+          )}
           <div className="flex-1 min-w-0">
-            {isEditingName ? (
+            {isEditingName && !readOnly ? (
               <div className="flex items-center space-x-2">
                 <input
                   type="text"
@@ -281,14 +334,33 @@ export function DeviceDetail() {
               </div>
             ) : (
               <h1
-                className="text-lg font-bold text-gray-900 cursor-pointer hover:text-blue-600 truncate"
-                onClick={() => setIsEditingName(true)}
+                className={`text-lg font-bold text-gray-900 truncate ${
+                  readOnly ? '' : 'cursor-pointer hover:text-blue-600'
+                }`}
+                onClick={() => !readOnly && setIsEditingName(true)}
               >
                 {device?.deviceName || device?.deviceId}
               </h1>
             )}
-            <DeviceStatusIndicator isOnline={isDeviceOnline} />
+            <div className="flex items-center gap-2 flex-wrap">
+              <DeviceStatusIndicator isOnline={isDeviceOnline} />
+              {readOnly && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-medium">
+                  <Eye className="w-3 h-3" /> Chỉ xem
+                </span>
+              )}
+            </div>
           </div>
+          {!readOnly && (
+          <>
+          <button
+            onClick={() => setShowShare(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-600 text-white text-sm font-medium shadow-sm hover:bg-blue-700 transition-colors flex-shrink-0"
+            title="Chia sẻ cho người khác xem (mời qua email hoặc tạo link)"
+          >
+            <Share2 className="w-4 h-4" />
+            <span>Chia sẻ</span>
+          </button>
           <button
             onClick={() => setShowRestartConfirm(true)}
             className="p-2 hover:bg-blue-100 rounded-lg transition-colors text-blue-600 flex-shrink-0"
@@ -303,7 +375,34 @@ export function DeviceDetail() {
           >
             <Trash2 className="w-5 h-5" />
           </button>
+          </>
+          )}
         </div>
+
+        {showShare && deviceId && (
+          <ShareDialog
+            kind="inverter"
+            deviceId={deviceId}
+            deviceName={device?.deviceName}
+            onClose={() => setShowShare(false)}
+          />
+        )}
+
+        {readOnly && (
+          <div
+            className={`rounded-lg px-4 py-2.5 text-sm border ${
+              live.revoked
+                ? 'bg-red-50 border-red-200 text-red-700'
+                : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}
+          >
+            {live.revoked
+              ? 'Link xem đã bị chủ thiết bị thu hồi hoặc đổi. Số liệu không còn cập nhật.'
+              : isPublic
+              ? 'Bạn đang xem thiết bị qua link chia sẻ. Chỉ được xem, không thể thay đổi cài đặt.'
+              : 'Thiết bị được chia sẻ với bạn ở chế độ chỉ xem.'}
+          </div>
+        )}
 
         {restartNotice && (
           <div
@@ -426,6 +525,7 @@ export function DeviceDetail() {
 
           {activeTab === 'chart' && deviceId && <EnergyChart deviceId={deviceId} />}
 
+          <fieldset disabled={readOnly} className="contents">
           {activeTab === 'settings' && (
             <SettingsTab
               value={settingsValue}
@@ -441,7 +541,7 @@ export function DeviceDetail() {
               isTogglingGridTie={gridTieMutation.isPending || gridTieQuery.isLoading}
             />
           )}
-          {activeTab === 'settings' && deviceId && (
+          {activeTab === 'settings' && deviceId && !readOnly && (
             <div className="mt-6">
               <FirmwareSection
                 deviceId={deviceId}
@@ -463,8 +563,9 @@ export function DeviceDetail() {
               gridTieOff={gridTieOff}
             />
           )}
+          </fieldset>
 
-          {activeTab === 'history' && deviceId && <ActivityLog deviceId={deviceId} />}
+          {activeTab === 'history' && deviceId && !isPublic && <ActivityLog deviceId={deviceId} />}
 
           {activeTab === 'support' && <SupportTab />}
         </div>

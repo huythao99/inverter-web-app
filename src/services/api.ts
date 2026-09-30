@@ -464,3 +464,38 @@ export const viewLinkUrl = (token: string): string =>
   `${window.location.origin}/app/v/${token}`;
 
 export default api;
+
+// ---- Home Assistant (read-only data over MQTT) ----
+export interface HassDeviceInfo {
+  kind: 'inverter' | 'charger';
+  deviceId: string;
+  deviceName: string;
+  stateTopic: string;
+  availabilityTopic: string;
+}
+
+export interface HassConfig {
+  /** False when Home Assistant is switched off server-wide. */
+  available: boolean;
+  enabled: boolean;
+  connected: boolean;
+  lastSeenAt: string | null;
+  broker: string;
+  port: number;
+  ssl: boolean;
+  username?: string;
+  password?: string;
+  discoveryPrefix?: string;
+  stateTopicPrefix?: string;
+  bridgeConfig?: string;
+  devices: HassDeviceInfo[];
+}
+
+export const getHassConfig = async (): Promise<HassConfig> =>
+  (await api.get('/hass')).data;
+export const enableHass = async (): Promise<HassConfig> =>
+  (await api.post('/hass/enable')).data;
+export const disableHass = async (): Promise<HassConfig> =>
+  (await api.post('/hass/disable')).data;
+export const regenerateHass = async (): Promise<HassConfig> =>
+  (await api.post('/hass/regenerate')).data;

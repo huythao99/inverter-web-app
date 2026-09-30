@@ -8,6 +8,7 @@ import { DeviceDetail } from './pages/DeviceDetail';
 import { ChargerDetail } from './pages/ChargerDetail';
 import { AddDevice } from './pages/AddDevice';
 import { PublicView } from './pages/PublicView';
+import { HomeAssistant } from './pages/HomeAssistant';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,6 +57,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <AddDevice />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/home-assistant"
+              element={
+                <ProtectedRoute>
+                  <HomeAssistant />
                 </ProtectedRoute>
               }
             />

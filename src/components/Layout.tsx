@@ -1,8 +1,14 @@
 import { ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { LogOut, Sun, User } from 'lucide-react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { HousePlug, LayoutGrid, LogOut, Sun, User } from 'lucide-react';
 import { SupportBanner } from './SupportBanner';
 import { useAuth } from '../contexts/AuthContext';
+
+// "Thiết bị" stays selected on device pages too (/devices/..., /chargers/...).
+const TABS = [
+  { to: '/', label: 'Thiết bị', icon: LayoutGrid, match: (p: string) => !p.startsWith('/home-assistant') },
+  { to: '/home-assistant', label: 'Home Assistant', icon: HousePlug, match: (p: string) => p.startsWith('/home-assistant') },
+];
 
 interface LayoutProps {
   children: ReactNode;
@@ -11,6 +17,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   const handleSignOut = async () => {
     await signOut();
@@ -66,6 +73,30 @@ export function Layout({ children }: LayoutProps) {
           </div>
         </div>
       </header>
+
+      {/* Section tabs (same sections as the mobile app's bottom bar) */}
+      {user && (
+        <nav className="relative z-10 bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-1 overflow-x-auto">
+            {TABS.map(({ to, label, icon: Icon, match }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={() =>
+                  `flex items-center gap-2 shrink-0 px-3 sm:px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                    match(pathname)
+                      ? 'border-blue-600 text-blue-700'
+                      : 'border-transparent text-gray-500 hover:text-gray-800'
+                  }`
+                }
+              >
+                <Icon className="w-4 h-4" />
+                {label}
+              </NavLink>
+            ))}
+          </div>
+        </nav>
+      )}
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">

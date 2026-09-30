@@ -16,10 +16,15 @@ export function usePublicLiveStream(
   token: string | undefined,
   kind: 'inverter' | 'charger',
   deviceId: string | undefined
-): { isOnline: boolean; lastSeen: number; revoked: boolean } {
+): {
+  isOnline: boolean;
+  lastSeen: number;
+  /** Set when the link stopped working while the page was open. */
+  revoked: 'expired' | 'revoked' | null;
+} {
   const queryClient = useQueryClient();
   const [lastSeen, setLastSeen] = useState(0);
-  const [revoked, setRevoked] = useState(false);
+  const [revoked, setRevoked] = useState<'expired' | 'revoked' | null>(null);
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -80,8 +85,14 @@ export function usePublicLiveStream(
       const msg = read(e as MessageEvent);
       if (msg) setLastSeen(msg.at || Date.now());
     });
-    es.addEventListener('revoked', () => {
-      setRevoked(true);
+    es.addEventListener('revoked', (e) => {
+      let reason: 'expired' | 'revoked' = 'revoked';
+      try {
+        if (JSON.parse((e as MessageEvent).data)?.reason === 'expired') reason = 'expired';
+      } catch {
+        /* keep 'revoked' */
+      }
+      setRevoked(reason);
       es.close();
     });
 

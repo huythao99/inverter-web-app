@@ -279,7 +279,9 @@ export function ChargerDetail({ publicToken, publicDeviceId }: ChargerDetailProp
                 : 'bg-amber-50 border-amber-200 text-amber-800'
             }`}
           >
-            {live.revoked
+            {live.revoked === 'expired'
+              ? 'Link xem đã hết hạn. Hãy xin chủ thiết bị gia hạn hoặc gửi link mới.'
+              : live.revoked
               ? 'Link xem đã bị chủ thiết bị thu hồi hoặc đổi. Số liệu không còn cập nhật.'
               : isPublic
               ? 'Bạn đang xem bộ sạc qua link chia sẻ. Chỉ được xem, không thể thay đổi cài đặt.'

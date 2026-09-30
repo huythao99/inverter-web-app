@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, Check, Link2, Mail, RefreshCw, Trash2, X, Eye } from 'lucide-react';
+import { Copy, Check, Link2, Mail, RefreshCw, Trash2, X, Eye, Clock } from 'lucide-react';
 import {
   addDeviceViewer,
   createViewLink,
   deleteViewLink,
+  extendViewLink,
+  LINK_DAYS,
+  type LinkDays,
   getDeviceSharing,
   removeDeviceViewer,
   viewLinkUrl,
@@ -17,6 +20,57 @@ interface ShareDialogProps {
   deviceId: string;
   deviceName?: string;
   onClose: () => void;
+}
+
+const DAYS_LABEL: Record<LinkDays, string> = {
+  1: '1 ngày',
+  7: '7 ngày',
+  30: '30 ngày',
+  0: 'Không giới hạn',
+};
+
+/** "Hết hạn lúc 16:30 7/10/2026 (còn 3 ngày)" + severity. */
+function expiryInfo(expiresAt: string | null | undefined): {
+  text: string;
+  tone: 'ok' | 'soon' | 'expired';
+} {
+  if (!expiresAt) return { text: 'Không giới hạn thời gian', tone: 'ok' };
+  const t = new Date(expiresAt).getTime();
+  const left = t - Date.now();
+  if (left <= 0) return { text: 'Đã hết hạn — người xem không mở được nữa', tone: 'expired' };
+  const when = new Date(t).toLocaleString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+  });
+  const hours = Math.floor(left / 3_600_000);
+  const rest = hours >= 24 ? `còn ${Math.ceil(left / 86_400_000)} ngày` : hours >= 1 ? `còn ${hours} giờ` : 'còn dưới 1 giờ';
+  return { text: `Hết hạn lúc ${when} (${rest})`, tone: left < 86_400_000 ? 'soon' : 'ok' };
+}
+
+function DaysPicker({ value, onChange }: { value: LinkDays; onChange: (d: LinkDays) => void }) {
+  return (
+    <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Thời hạn link">
+      {LINK_DAYS.map((d) => (
+        <button
+          key={d}
+          type="button"
+          role="radio"
+          aria-checked={value === d}
+          onClick={() => onChange(d)}
+          className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+            value === d
+              ? 'bg-blue-600 border-blue-600 text-white'
+              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          {DAYS_LABEL[d]}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function errorText(e: unknown): string {
@@ -32,6 +86,8 @@ export function ShareDialog({ kind, deviceId, deviceName, onClose }: ShareDialog
   const [email, setEmail] = useState('');
   const [copied, setCopied] = useState(false);
   const [confirmRegen, setConfirmRegen] = useState(false);
+  const [days, setDays] = useState<LinkDays>(7);
+  const [showExtend, setShowExtend] = useState(false);
 
   const sharingQuery = useQuery({
     queryKey,
@@ -51,10 +107,17 @@ export function ShareDialog({ kind, deviceId, deviceName, onClose }: ShareDialog
     onSuccess: onDone,
   });
   const linkMutation = useMutation({
-    mutationFn: () => createViewLink(kind, deviceId),
+    mutationFn: () => createViewLink(kind, deviceId, days),
     onSuccess: (data) => {
       onDone(data);
       setConfirmRegen(false);
+    },
+  });
+  const extendMutation = useMutation({
+    mutationFn: () => extendViewLink(kind, deviceId, days),
+    onSuccess: (data) => {
+      onDone(data);
+      setShowExtend(false);
     },
   });
   const unlinkMutation = useMutation({
@@ -64,6 +127,7 @@ export function ShareDialog({ kind, deviceId, deviceName, onClose }: ShareDialog
 
   const sharing = sharingQuery.data;
   const link = sharing?.link ? viewLinkUrl(sharing.link.token) : null;
+  const expiry = expiryInfo(sharing?.link?.expiresAt);
 
   const copy = async () => {
     if (!link) return;
@@ -195,6 +259,37 @@ export function ShareDialog({ kind, deviceId, deviceName, onClose }: ShareDialog
                         {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                       </button>
                     </div>
+                    <div
+                      className={`flex items-start gap-2 text-sm rounded-lg px-3 py-2 border ${
+                        expiry.tone === 'expired'
+                          ? 'bg-red-50 border-red-200 text-red-700'
+                          : expiry.tone === 'soon'
+                            ? 'bg-amber-50 border-amber-200 text-amber-800'
+                            : 'bg-gray-50 border-gray-200 text-gray-700'
+                      }`}
+                    >
+                      <Clock className="w-4 h-4 mt-0.5 shrink-0" />
+                      <span className="flex-1">{expiry.text}</span>
+                      <button
+                        onClick={() => setShowExtend((v) => !v)}
+                        className="text-xs font-semibold text-blue-600 hover:underline shrink-0"
+                      >
+                        Gia hạn
+                      </button>
+                    </div>
+                    {showExtend && (
+                      <div className="space-y-2 border border-blue-100 bg-blue-50/50 rounded-lg p-3">
+                        <p className="text-xs text-gray-600">Thời hạn mới, tính từ bây giờ (link giữ nguyên):</p>
+                        <DaysPicker value={days} onChange={setDays} />
+                        <button
+                          onClick={() => extendMutation.mutate()}
+                          disabled={extendMutation.isPending}
+                          className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          {extendMutation.isPending ? '...' : 'Lưu thời hạn'}
+                        </button>
+                      </div>
+                    )}
                     <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
                       Ai có link đều xem được, không cần đăng nhập. Chỉ gửi cho người bạn tin tưởng.
                     </p>
@@ -205,7 +300,7 @@ export function ShareDialog({ kind, deviceId, deviceName, onClose }: ShareDialog
                           disabled={linkMutation.isPending}
                           className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
                         >
-                          <RefreshCw className="w-3.5 h-3.5" /> Xác nhận: link cũ sẽ ngừng hoạt động
+                          <RefreshCw className="w-3.5 h-3.5" /> Xác nhận: link mới ({DAYS_LABEL[days]}), link cũ ngừng hoạt động
                         </button>
                       ) : (
                         <button
@@ -225,17 +320,23 @@ export function ShareDialog({ kind, deviceId, deviceName, onClose }: ShareDialog
                     </div>
                   </>
                 ) : (
-                  <button
-                    onClick={() => linkMutation.mutate()}
-                    disabled={linkMutation.isPending}
-                    className="flex items-center gap-2 px-4 py-2 text-sm border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50 disabled:opacity-50"
-                  >
-                    <Link2 className="w-4 h-4" /> Tạo link xem
-                  </button>
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-gray-600">Thời hạn của link:</p>
+                      <DaysPicker value={days} onChange={setDays} />
+                    </div>
+                    <button
+                      onClick={() => linkMutation.mutate()}
+                      disabled={linkMutation.isPending}
+                      className="flex items-center gap-2 px-4 py-2 text-sm border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50 disabled:opacity-50"
+                    >
+                      <Link2 className="w-4 h-4" /> Tạo link xem
+                    </button>
+                  </div>
                 )}
-                {(linkMutation.error || unlinkMutation.error) && (
+                {(linkMutation.error || unlinkMutation.error || extendMutation.error) && (
                   <p className="text-xs text-red-600">
-                    {errorText(linkMutation.error || unlinkMutation.error)}
+                    {errorText(linkMutation.error || unlinkMutation.error || extendMutation.error)}
                   </p>
                 )}
               </section>

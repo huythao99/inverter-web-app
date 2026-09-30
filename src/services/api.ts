@@ -388,7 +388,7 @@ export interface ShareViewer {
 }
 export interface DeviceSharing {
   viewers: ShareViewer[];
-  link: { token: string; createdAt: string | null } | null;
+  link: { token: string; createdAt: string | null; expiresAt: string | null } | null;
 }
 export interface SharedDevice {
   kind: 'inverter' | 'charger';
@@ -425,8 +425,24 @@ export const removeDeviceViewer = async (
 ): Promise<DeviceSharing> =>
   (await api.delete(`/viewers/${kind}/${enc(deviceId)}/${enc(email)}`)).data;
 
-export const createViewLink = async (kind: Kind, deviceId: string): Promise<DeviceSharing> =>
-  (await api.post(`/viewers/${kind}/${enc(deviceId)}/link`)).data;
+/** Link lifetimes offered to the owner (days; 0 = never expires). */
+export const LINK_DAYS = [1, 7, 30, 0] as const;
+export type LinkDays = (typeof LINK_DAYS)[number];
+
+export const createViewLink = async (
+  kind: Kind,
+  deviceId: string,
+  days: LinkDays = 7
+): Promise<DeviceSharing> =>
+  (await api.post(`/viewers/${kind}/${enc(deviceId)}/link`, { days })).data;
+
+/** New lifetime for the current link, counted from now (same URL). */
+export const extendViewLink = async (
+  kind: Kind,
+  deviceId: string,
+  days: LinkDays
+): Promise<DeviceSharing> =>
+  (await api.post(`/viewers/${kind}/${enc(deviceId)}/link/extend`, { days })).data;
 
 export const deleteViewLink = async (kind: Kind, deviceId: string): Promise<DeviceSharing> =>
   (await api.delete(`/viewers/${kind}/${enc(deviceId)}/link`)).data;
@@ -434,7 +450,13 @@ export const deleteViewLink = async (kind: Kind, deviceId: string): Promise<Devi
 /** Public link landing: which device it opens (no account needed). */
 export const getPublicView = async (
   token: string
-): Promise<{ kind: Kind; deviceId: string; deviceName: string; description: string }> =>
+): Promise<{
+  kind: Kind;
+  deviceId: string;
+  deviceName: string;
+  description: string;
+  expiresAt: string | null;
+}> =>
   (await axios.get(`${API_URL}/api/public/view/${enc(token)}`)).data;
 
 /** Full URL of a public view link (web route /app/v/:token). */

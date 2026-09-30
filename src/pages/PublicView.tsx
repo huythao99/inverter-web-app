@@ -28,14 +28,20 @@ export function PublicView() {
   }
 
   const info = infoQuery.data;
+  const expired =
+    (infoQuery.error as { response?: { status?: number } } | null)?.response?.status === 410;
   if (!token || infoQuery.error || !info) {
     return (
       <Layout>
         <div className="max-w-md mx-auto bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
           <Link2Off className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <h1 className="text-lg font-semibold text-gray-900">Link không còn hiệu lực</h1>
+          <h1 className="text-lg font-semibold text-gray-900">
+            {expired ? 'Link xem đã hết hạn' : 'Link không còn hiệu lực'}
+          </h1>
           <p className="text-sm text-gray-500 mt-2">
-            Link xem đã bị chủ thiết bị thu hồi hoặc đổi. Hãy xin lại link mới.
+            {expired
+              ? 'Hãy nhờ chủ thiết bị gia hạn link hoặc gửi link mới.'
+              : 'Link xem đã bị chủ thiết bị thu hồi hoặc đổi. Hãy xin lại link mới.'}
           </p>
         </div>
       </Layout>

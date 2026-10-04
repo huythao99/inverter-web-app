@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSlidingIndicator } from '../hooks/useSlidingIndicator';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Cpu, RefreshCw, Plus, BatteryCharging, Eye } from 'lucide-react';
@@ -61,6 +62,7 @@ export function Dashboard() {
   ];
 
   const activeList = activeTab === 'inverter' ? inverters : chargers;
+  const tabSlider = useSlidingIndicator<HTMLElement>(tabs.findIndex((t) => t.id === activeTab));
   const sharedForTab = (sharedQuery.data?.devices ?? []).filter((d) => d.kind === activeTab);
 
   // Live online/offline badges (one wildcard MQTT subscription per kind).
@@ -106,15 +108,19 @@ export function Dashboard() {
 
         {/* Tabs */}
         <div className="border-b border-gray-200">
-          <nav className="flex space-x-6 overflow-x-auto scrollbar-none">
-            {tabs.map((tab) => (
+          <nav ref={tabSlider.containerRef} className="relative flex space-x-6 overflow-x-auto scrollbar-none">
+            <span
+              aria-hidden
+              className="pointer-events-none absolute bottom-0 h-0.5 rounded-full bg-blue-500"
+              style={tabSlider.indicatorStyle}
+            />
+            {tabs.map((tab, i) => (
               <button
                 key={tab.id}
+                ref={tabSlider.itemRef(i)}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 py-3 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap flex-shrink-0 ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                className={`relative flex items-center space-x-2 py-3 px-1 font-medium text-sm transition-colors duration-300 whitespace-nowrap flex-shrink-0 ${
+                  activeTab === tab.id ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
                 <tab.icon className="w-4 h-4" />

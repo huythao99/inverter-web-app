@@ -1,12 +1,26 @@
 import { ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { HousePlug, LayoutGrid, LogOut, Sun, User } from 'lucide-react';
+import { BarChart3, HousePlug, LayoutGrid, LogOut, Sun, User } from 'lucide-react';
 import { SupportBanner } from './SupportBanner';
+import { useSlidingIndicator } from '../hooks/useSlidingIndicator';
 import { useAuth } from '../contexts/AuthContext';
 
 // "Thiết bị" stays selected on device pages too (/devices/..., /chargers/...).
 const TABS = [
-  { to: '/', label: 'Thiết bị', icon: LayoutGrid, match: (p: string) => !p.startsWith('/home-assistant') },
+  {
+    to: '/',
+    label: 'Thiết bị',
+    icon: LayoutGrid,
+    match: (p: string) =>
+      !p.startsWith('/home-assistant') && !p.startsWith('/overview') && !p.startsWith('/share'),
+  },
+  // "Tổng quan" holds two sub-tabs: Sản lượng (/overview) and Chia sẻ công suất (/share).
+  {
+    to: '/overview',
+    label: 'Tổng quan',
+    icon: BarChart3,
+    match: (p: string) => p.startsWith('/overview') || p.startsWith('/share'),
+  },
   { to: '/home-assistant', label: 'Home Assistant', icon: HousePlug, match: (p: string) => p.startsWith('/home-assistant') },
 ];
 
@@ -18,6 +32,10 @@ export function Layout({ children }: LayoutProps) {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const nav = useSlidingIndicator(
+    TABS.findIndex((t) => t.match(pathname)),
+    'main-nav',
+  );
 
   const handleSignOut = async () => {
     await signOut();
@@ -77,16 +95,24 @@ export function Layout({ children }: LayoutProps) {
       {/* Section tabs (same sections as the mobile app's bottom bar) */}
       {user && (
         <nav className="relative z-10 bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-1 overflow-x-auto">
-            {TABS.map(({ to, label, icon: Icon, match }) => (
+          <div
+            ref={nav.containerRef}
+            className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-1 overflow-x-auto"
+          >
+            {/* Sliding underline under the active tab */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute bottom-0 h-0.5 rounded-full bg-blue-600"
+              style={nav.indicatorStyle}
+            />
+            {TABS.map(({ to, label, icon: Icon, match }, i) => (
               <NavLink
                 key={to}
                 to={to}
+                ref={nav.itemRef(i)}
                 className={() =>
-                  `flex items-center gap-2 shrink-0 px-3 sm:px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                    match(pathname)
-                      ? 'border-blue-600 text-blue-700'
-                      : 'border-transparent text-gray-500 hover:text-gray-800'
+                  `relative flex items-center gap-2 shrink-0 px-3 sm:px-4 py-3 text-sm font-medium transition-colors duration-300 ${
+                    match(pathname) ? 'text-blue-700' : 'text-gray-500 hover:text-gray-800'
                   }`
                 }
               >

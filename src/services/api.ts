@@ -16,6 +16,10 @@ import type {
   ChargerLatest,
   ChargerSetting,
   EnergyReport,
+  EnergyOverview,
+  ShareGroup,
+  ShareGroupInput,
+  ShareGroupOverview,
   ActivityPage,
 } from '../types';
 
@@ -219,6 +223,61 @@ export const getEnergyReport = async (
     params: { year, month, tariff },
   });
   return response.data;
+};
+
+// All the inverters the user owns: today (live), month by day, year by month,
+// lifetime, with each device's share and the savings.
+export const getEnergyOverview = async (
+  year: number,
+  month: number,
+  tariff: 'tiered' | 'flat' = 'tiered'
+): Promise<EnergyOverview> => {
+  const response = await api.get('/energy-overview', { params: { year, month, tariff } });
+  return response.data;
+};
+
+// ---- Power share groups ----------------------------------------------------
+export const getShareGroups = async (): Promise<ShareGroup[]> => {
+  const response = await api.get('/share-groups');
+  return Array.isArray(response.data) ? response.data : [];
+};
+
+export const getShareGroup = async (groupId: string): Promise<ShareGroup> => {
+  const response = await api.get(`/share-groups/${groupId}`);
+  return response.data;
+};
+
+export const createShareGroup = async (input: ShareGroupInput): Promise<ShareGroup> => {
+  const response = await api.post('/share-groups', input);
+  return response.data;
+};
+
+export const updateShareGroup = async (
+  groupId: string,
+  input: Partial<ShareGroupInput>
+): Promise<ShareGroup> => {
+  const response = await api.patch(`/share-groups/${groupId}`, input);
+  return response.data;
+};
+
+export const deleteShareGroup = async (groupId: string): Promise<void> => {
+  await api.delete(`/share-groups/${groupId}`);
+};
+
+// Live state of a group: members' power, the watts the group assigns them and
+// their energy today / this week / this month.
+export const getShareGroupOverview = async (groupId: string): Promise<ShareGroupOverview> => {
+  const response = await api.get(`/share-groups/${groupId}/overview`);
+  return response.data;
+};
+
+/** Backend error message (e.g. "device already in another group"). */
+export const apiErrorMessage = (err: unknown, fallback: string): string => {
+  const data = (err as { response?: { data?: { message?: unknown } } })?.response?.data;
+  const msg = data?.message;
+  if (typeof msg === 'string' && msg) return msg;
+  if (Array.isArray(msg) && msg.length) return String(msg[0]);
+  return fallback;
 };
 
 // Settings / schedule / grid-tie change history (newest first).

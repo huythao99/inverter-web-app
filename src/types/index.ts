@@ -218,3 +218,111 @@ export interface ActivityPage {
   data: ActivityEntry[];
   nextBefore: string | null;
 }
+
+// ---- Account energy overview (GET /api/user/energy-overview) ----
+export interface OverviewDevice {
+  deviceId: string;
+  name: string;
+  generatedKwh: number;
+  gridKwh: number;
+  savings: number;
+  sharePercent: number;
+}
+
+export interface OverviewPeriod {
+  generatedKwh: number;
+  gridKwh: number;
+  consumptionKwh: number;
+  selfSufficiency: number;
+  savings: number;
+  devices: OverviewDevice[];
+}
+
+export interface EnergyOverview {
+  generatedAt: string;
+  devices: { deviceId: string; name: string }[];
+  tariff: EnergyReport['tariff'];
+  today: OverviewPeriod & { date: string };
+  month: OverviewPeriod & {
+    year: number;
+    month: number;
+    partial: boolean;
+    days: { date: string; generatedKwh: number; gridKwh: number }[];
+  };
+  year: OverviewPeriod & {
+    year: number;
+    months: { month: number; generatedKwh: number; gridKwh: number; savings: number }[];
+  };
+  lifetime: OverviewPeriod & { since: string | null };
+}
+
+// ---- Power share groups (GET/POST/PATCH/DELETE /api/user/share-groups) ----
+export interface ShareMember {
+  deviceId: string;
+  ratio: number;
+}
+
+export interface ShareGroup {
+  _id: string;
+  name?: string;
+  enabled: boolean;
+  members: ShareMember[];
+  updatedAt?: string;
+}
+
+export interface ShareGroupInput {
+  name?: string;
+  enabled?: boolean;
+  members: ShareMember[];
+}
+
+export interface ShareMemberLive {
+  gridPower: number | null;
+  batteryVoltage: number | null;
+  gridTiePower: number | null;
+  temperature: number | null;
+  cutoffVoltage: number | null;
+  powerLimit: number | null;
+}
+
+export interface ShareKwh {
+  generatedKwh: number;
+  gridKwh: number;
+}
+
+export interface ShareOverviewMember {
+  deviceId: string;
+  name: string;
+  ratio: number;
+  ratioPercent: number;
+  online: boolean;
+  gridTieOff: boolean;
+  assignedWatts: number | null;
+  live: ShareMemberLive | null;
+  today: ShareKwh;
+  week: ShareKwh;
+  month: ShareKwh;
+}
+
+export interface ShareGroupOverview {
+  groupId: string;
+  name: string;
+  enabled: boolean;
+  generatedAt: string;
+  poolWatts: number;
+  weekStart: string;
+  monthStart: string;
+  totals: {
+    gridTiePower: number;
+    gridPower: number;
+    assignedWatts: number;
+    online: number;
+    todayGeneratedKwh: number;
+    todayGridKwh: number;
+    weekGeneratedKwh: number;
+    weekGridKwh: number;
+    monthGeneratedKwh: number;
+    monthGridKwh: number;
+  };
+  members: ShareOverviewMember[];
+}

@@ -9,6 +9,10 @@ import { ChargerDetail } from './pages/ChargerDetail';
 import { AddDevice } from './pages/AddDevice';
 import { PublicView } from './pages/PublicView';
 import { HomeAssistant } from './pages/HomeAssistant';
+import { EnergyOverview } from './pages/EnergyOverview';
+import { PowerShare } from './pages/PowerShare';
+import { ShareGroupEditor } from './pages/ShareGroupEditor';
+import { ShareGroupOverview } from './pages/ShareGroupOverview';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,6 +61,46 @@ function App() {
               element={
                 <ProtectedRoute>
                   <AddDevice />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/overview"
+              element={
+                <ProtectedRoute>
+                  <EnergyOverview />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/share"
+              element={
+                <ProtectedRoute>
+                  <PowerShare />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/share/new"
+              element={
+                <ProtectedRoute>
+                  <ShareGroupEditor />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/share/:groupId"
+              element={
+                <ProtectedRoute>
+                  <ShareGroupOverview />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/share/:groupId/edit"
+              element={
+                <ProtectedRoute>
+                  <ShareGroupEditor />
                 </ProtectedRoute>
               }
             />

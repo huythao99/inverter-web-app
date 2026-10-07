@@ -369,10 +369,27 @@ export const getDeviceFirmwareVersion = async (
 // deviceId: devices on the beta list get the beta version.
 export const getLatestFirmwareVersion = async (
   deviceId?: string
-): Promise<{ version: string }> => {
+): Promise<{ version: string; releaseNotes?: string }> => {
   const response = await api.get('/firmware/newest', {
     params: deviceId ? { deviceId } : undefined,
   });
+  return response.data;
+};
+
+export interface FirmwareRelease {
+  version: string;
+  /** Plain text, one change per line. */
+  notes: string;
+  date: string | null;
+  installed: boolean;
+  isNew: boolean;
+}
+
+// Release notes of the versions up to the one this device is offered.
+export const getFirmwareReleases = async (
+  deviceId: string
+): Promise<{ currentVersion: string; targetVersion: string; releases: FirmwareRelease[] }> => {
+  const response = await api.get(`/devices/${deviceId}/firmware/releases`);
   return response.data;
 };
 

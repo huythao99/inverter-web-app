@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CircuitBoard, Cpu, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ChevronDown, CircuitBoard, Cpu, RefreshCw, Sparkles } from 'lucide-react';
 import {
   getDeviceFirmwareVersion,
   getDeviceStm,
+  getFirmwareReleases,
   getLatestFirmwareVersion,
   triggerFirmwareUpdate,
   triggerStmUpdate,
@@ -222,6 +223,24 @@ function useResponseTimeout(
   }, [waitingSince, ota, onTimeout]);
 }
 
+/** Release notes: one change per line -> bullet list. */
+function NotesList({ text }: { text: string }) {
+  const lines = text
+    .split('\n')
+    .map((l) => l.replace(/^[-*•]\s*/, '').trim())
+    .filter(Boolean);
+  return (
+    <ul className="list-disc pl-5 space-y-0.5 text-sm text-gray-700">
+      {lines.map((l, i) => (
+        <li key={i}>{l}</li>
+      ))}
+    </ul>
+  );
+}
+
+const fmtDate = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString('vi-VN') : '';
+
 // ---------------------------------------------------------------------------
 
 export function FirmwareSection({
@@ -251,6 +270,13 @@ export function FirmwareSection({
   });
   const espCurrent = espCurrentQuery.data?.firmwareVersion ?? reportedEspVersion ?? '';
   const espLatest = espLatestQuery.data?.version ?? '';
+  const espLatestNotes = espLatestQuery.data?.releaseNotes?.trim() ?? '';
+  const [showHistory, setShowHistory] = useState(false);
+  const releasesQuery = useQuery({
+    queryKey: ['firmware-releases', deviceId],
+    queryFn: () => getFirmwareReleases(deviceId),
+    enabled: showHistory,
+  });
   const espUpdateAvailable = !!espCurrent && !!espLatest && compareVersions(espCurrent, espLatest) < 0;
 
   // ---- STM32 state ----
@@ -367,6 +393,7 @@ export function FirmwareSection({
   const onEspUpdate = () => {
     const ok = window.confirm(
       `Cập nhật firmware bộ điều khiển lên ${espLatest}?\n\n` +
+        (espLatestNotes ? `Có gì mới:\n${espLatestNotes}\n\n` : '') +
         'Thiết bị sẽ tự khởi động lại, mất kết nối khoảng 1 phút.',
     );
     if (ok) espMutation.mutate();
@@ -445,6 +472,15 @@ export function FirmwareSection({
         </h5>
         <Row label="Phiên bản hiện tại" value={espCurrent || '---'} />
         <Row label="Phiên bản mới" value={espLatest || '---'} />
+        {espUpdateAvailable && espLatestNotes && (
+          <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3">
+            <p className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-blue-800">
+              <Sparkles className="h-4 w-4" />
+              Có gì mới ở bản {espLatest}
+            </p>
+            <NotesList text={espLatestNotes} />
+          </div>
+        )}
         <UpdateButton
           label={espButtonLabel}
           enabled={espEnabled}
@@ -453,6 +489,44 @@ export function FirmwareSection({
           color="bg-blue-600 hover:bg-blue-700"
         />
         {espNotice && <p className={`text-sm ${TONE_CLASS[espNotice.tone]}`}>{espNotice.text}</p>}
+        <button
+          onClick={() => setShowHistory((v) => !v)}
+          className="flex w-full items-center justify-between text-sm text-gray-600 hover:text-gray-900"
+        >
+          <span>Lịch sử phiên bản</span>
+          <ChevronDown
+            className={`h-4 w-4 transition-transform ${showHistory ? 'rotate-180' : ''}`}
+          />
+        </button>
+        {showHistory && (
+          <div className="space-y-3">
+            {releasesQuery.isLoading ? (
+              <LoadingSpinner size="sm" />
+            ) : !releasesQuery.data?.releases.length ? (
+              <p className="text-sm text-gray-500">Chưa có ghi chú phiên bản.</p>
+            ) : (
+              releasesQuery.data.releases.map((r) => (
+                <div key={r.version} className="rounded-lg bg-white p-3 border border-gray-100">
+                  <p className="mb-1 flex flex-wrap items-center gap-2 text-sm">
+                    <span className="font-semibold text-gray-900">{r.version}</span>
+                    {r.installed && (
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
+                        Đang dùng
+                      </span>
+                    )}
+                    {r.isNew && (
+                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
+                        Mới
+                      </span>
+                    )}
+                    <span className="text-xs text-gray-400">{fmtDate(r.date)}</span>
+                  </p>
+                  <NotesList text={r.notes} />
+                </div>
+              ))
+            )}
+          </div>
+        )}
         {espOta && (
           <Progress
             label={ESP_LABEL[espOta.status] ?? espOta.status}

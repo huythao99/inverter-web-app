@@ -116,6 +116,12 @@ export function ShareGroupOverview() {
   });
   const sum = (f: (m: ShareOverviewMember) => number | null | undefined) =>
     members.reduce((s, m) => s + (f(m) ?? 0), 0);
+  // The members share one grid line and all measure the same import: it
+  // counts once (average of the members that measured something).
+  const avg = (f: (m: ShareOverviewMember) => number | null | undefined) => {
+    const v = members.map(f).filter((x): x is number => typeof x === 'number' && x !== 0);
+    return v.length ? v.reduce((s, x) => s + x, 0) / v.length : 0;
+  };
   const online = members.filter((m) => m.online).length;
 
   return (
@@ -176,7 +182,7 @@ export function ShareGroupOverview() {
               </div>
               <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-4">
                 <Stat label="Đang xả" value={w(sum((m) => m.live?.gridTiePower))} color="#2a78d6" />
-                <Stat label="Lấy lưới" value={w(sum((m) => m.live?.gridPower))} color="#eb6834" />
+                <Stat label="Lấy lưới" value={w(avg((m) => m.live?.gridPower))} color="#eb6834" />
                 <Stat label="Tổng tải chia" value={o.enabled ? w(o.poolWatts) : '–'} />
                 <Stat label="Xả hôm nay" value={kwh(o.totals.todayGeneratedKwh)} />
                 <Stat label="Xả tháng này" value={kwh(o.totals.monthGeneratedKwh)} />

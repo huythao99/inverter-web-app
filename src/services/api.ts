@@ -67,6 +67,13 @@ api.interceptors.response.use(
   }
 );
 
+// One-time setup code for a new charger (valid ~30 min, one device). Must be
+// fetched while still online, before joining the charger's setup WiFi.
+export const createChargerClaim = async (): Promise<{ claim: string; expiresAt: string }> => {
+  const response = await api.post('/chargers/claim');
+  return response.data;
+};
+
 // User Profile
 export const getProfile = async (): Promise<UserProfile> => {
   const response = await api.get('/profile');

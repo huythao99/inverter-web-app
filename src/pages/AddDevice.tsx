@@ -16,7 +16,6 @@ import {
   ExternalLink,
   Globe,
   Send,
-  PlayCircle,
 } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
@@ -29,7 +28,6 @@ type DeviceType = 'inverter' | 'charger';
 type ConnectMethod = 'web' | 'device-page';
 
 const ESP32_IP = '192.168.4.1';
-const GUIDE_VIDEO_URL = 'https://youtu.be/8Y0wR_763WI';
 // Refetch the charger claim when it has less than this left (TTL ~30 min).
 const CLAIM_MIN_LEFT_MS = 3 * 60 * 1000;
 
@@ -341,23 +339,6 @@ export function AddDevice() {
           {/* Step 1: Prepare */}
           {currentStep === 1 && (
             <div className="space-y-6">
-              {/* Setup guide video */}
-              <a
-                href={GUIDE_VIDEO_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center space-x-3 p-4 rounded-lg border border-red-100 hover:bg-red-50 transition-colors"
-              >
-                <div className="p-2 bg-red-50 rounded-full">
-                  <PlayCircle className="w-6 h-6 text-red-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">Xem video hướng dẫn kết nối</p>
-                  <p className="text-xs text-gray-500">Các bước thêm thiết bị (YouTube)</p>
-                </div>
-                <ExternalLink className="w-4 h-4 text-gray-400" />
-              </a>
-
               {/* Device type selector */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">

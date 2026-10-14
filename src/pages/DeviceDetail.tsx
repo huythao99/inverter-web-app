@@ -161,10 +161,16 @@ export function DeviceDetail({ publicToken, publicDeviceId }: DeviceDetailProps 
     enabled: !!deviceId && activeTab === 'overview',
   });
 
+  // Refetched every time the tab gets focus again (staleTime 0); the GMT+7
+  // day in the key moves a tab left open overnight to the new day instead of
+  // keeping yesterday's number as "hôm nay".
+  const todayKey = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
   const dailyTodayQuery = useQuery({
-    queryKey: ['device-daily-today', deviceId],
+    queryKey: ['device-daily-today', deviceId, todayKey],
     queryFn: () => getDailyTotalsToday(deviceId!),
     enabled: !!deviceId && activeTab === 'overview',
+    staleTime: 0,
+    refetchOnWindowFocus: 'always',
   });
 
   // Mutations

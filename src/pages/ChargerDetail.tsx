@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { ActivityLog } from '../components/ActivityLog';
 import { ShareDialog } from '../components/ShareDialog';
+import { DeleteDeviceButton } from '../components/DeleteDeviceButton';
 import { useViewAccess, type ViewAccess } from '../services/viewAccess';
 import { usePublicLiveStream } from '../hooks/usePublicLiveStream';
 import { useAuth } from '../contexts/AuthContext';
@@ -28,6 +29,7 @@ import { useChargerMqtt } from '../hooks/useChargerMqtt';
 import { Layout } from '../components/Layout';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import {
+  deleteCharger,
   getChargerDevice,
   getChargerLatest,
   getChargerSetting,
@@ -259,6 +261,13 @@ export function ChargerDetail({ publicToken, publicDeviceId }: ChargerDetailProp
               <Share2 className="w-4 h-4" />
               <span>Chia sẻ</span>
             </button>
+          )}
+          {!readOnly && deviceId && (
+            <DeleteDeviceButton
+              deviceName={device?.deviceName || deviceId}
+              listQueryKey="charger-devices"
+              onDelete={() => deleteCharger(deviceId)}
+            />
           )}
         </div>
 

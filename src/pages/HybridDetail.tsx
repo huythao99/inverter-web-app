@@ -21,8 +21,10 @@ import { Layout } from '../components/Layout';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ActivityLog } from '../components/ActivityLog';
 import { HybridEnergyFlow } from '../components/HybridEnergyFlow';
+import { DeleteDeviceButton } from '../components/DeleteDeviceButton';
 import { useHybridMqtt } from '../hooks/useHybridMqtt';
 import {
+  deleteHybrid,
   getHybridDevice,
   getHybridEnergy,
   getHybridLatest,
@@ -204,6 +206,13 @@ export function HybridDetail() {
               </span>
             </div>
           </div>
+          {deviceId && (
+            <DeleteDeviceButton
+              deviceName={device?.deviceName || deviceId}
+              listQueryKey="hybrid-devices"
+              onDelete={() => deleteHybrid(deviceId)}
+            />
+          )}
         </div>
 
         <div className="border-b border-gray-200">

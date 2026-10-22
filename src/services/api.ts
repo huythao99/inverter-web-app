@@ -471,6 +471,11 @@ export const updateChargerDevice = async (
   return response.data;
 };
 
+// Xoá bộ sạc khỏi tài khoản (BE thu hồi luôn tài khoản MQTT của máy).
+export const deleteCharger = async (deviceId: string): Promise<void> => {
+  await api.delete(`/chargers/${deviceId}`);
+};
+
 // ============================================================
 // Hybrid — /api/user/hybrids/* (Firebase JWT). STM32 HINVLF v1 inverter:
 // 9 settings (server-owned, the ESP32 re-applies them), commands, energy.
@@ -516,6 +521,11 @@ export const updateHybridDevice = async (
 ): Promise<HybridDevice> => {
   const response = await api.patch(`/hybrids/${deviceId}`, data);
   return response.data;
+};
+
+// Xoá hybrid (BE thu hồi tài khoản MQTT, xoá dữ liệu / điện năng / cài đặt).
+export const deleteHybrid = async (deviceId: string): Promise<void> => {
+  await api.delete(`/hybrids/${deviceId}`);
 };
 
 export const sendHybridCommand = async (

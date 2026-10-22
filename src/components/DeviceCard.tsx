@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom';
-import { Cpu, ChevronRight, Wifi, BatteryCharging } from 'lucide-react';
+import { Cpu, ChevronRight, Wifi, BatteryCharging, Shuffle } from 'lucide-react';
 import type { Device, ChargerDevice } from '../types';
 import type { OnlineState } from '../hooks/useDevicesOnline';
 
 interface DeviceCardProps {
   device: Device | ChargerDevice;
-  variant?: 'inverter' | 'charger';
+  variant?: 'inverter' | 'charger' | 'hybrid';
   /** Live online state (MQTT heartbeat). Omitted = no badge. */
   online?: OnlineState;
 }
@@ -18,10 +18,15 @@ const ONLINE_BADGE: Record<OnlineState, { label: string; dot: string; text: stri
 
 export function DeviceCard({ device, variant = 'inverter', online }: DeviceCardProps) {
   const isCharger = variant === 'charger';
+  const isHybrid = variant === 'hybrid';
   const to = isCharger
     ? `/chargers/${device.deviceId}`
-    : `/devices/${device.deviceId}`;
-  const Icon = isCharger ? BatteryCharging : Cpu;
+    : isHybrid
+      ? `/hybrids/${device.deviceId}`
+      : `/devices/${device.deviceId}`;
+  const Icon = isCharger ? BatteryCharging : isHybrid ? Shuffle : Cpu;
+  const iconBg = isCharger ? 'bg-green-50' : isHybrid ? 'bg-purple-50' : 'bg-blue-50';
+  const iconFg = isCharger ? 'text-green-600' : isHybrid ? 'text-purple-600' : 'text-blue-600';
 
   return (
     <Link
@@ -31,8 +36,8 @@ export function DeviceCard({ device, variant = 'inverter', online }: DeviceCardP
       <div className="p-4 sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-            <div className={`shrink-0 p-3 rounded-lg ${isCharger ? 'bg-green-50' : 'bg-blue-50'}`}>
-              <Icon className={`w-6 h-6 ${isCharger ? 'text-green-600' : 'text-blue-600'}`} />
+            <div className={`shrink-0 p-3 rounded-lg ${iconBg}`}>
+              <Icon className={`w-6 h-6 ${iconFg}`} />
             </div>
             <div className="min-w-0">
               <h3
@@ -66,7 +71,7 @@ export function DeviceCard({ device, variant = 'inverter', online }: DeviceCardP
           <div className="flex items-center justify-between gap-3 text-sm">
             <span className="text-gray-500 shrink-0">Loại</span>
             <span className="font-medium text-gray-900 text-right truncate">
-              {isCharger ? 'Bộ sạc' : 'Inverter'}
+              {isCharger ? 'Bộ sạc' : isHybrid ? 'Hybrid' : 'Inverter'}
             </span>
           </div>
           <div className="flex items-center justify-between gap-3 text-sm mt-2">

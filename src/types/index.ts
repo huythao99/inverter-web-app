@@ -114,6 +114,78 @@ export interface ChargerSetting {
   updatedAt?: string;
 }
 
+// ---- Hybrid (/api/user/hybrids/*): STM32 HINVLF v1 inverter ----
+export type HybridDevice = ChargerDevice; // deviceId dạng HybridControl<N>
+
+/** Khung STM32 dạng KEY -> VALUE (chuỗi, đúng như máy gửi). */
+export type HinvlfFrame = Record<string, string>;
+
+export interface HybridNak {
+  of: string; // "SET" | "CMD FAULT_RST" ...
+  err: string; // CRC FORMAT UNSUP KEY VALUE RANGE LOCAL BUSY FLASH
+  key?: string;
+  raw?: string;
+  at: string;
+}
+
+export interface HybridLatest {
+  userId?: string;
+  deviceId: string;
+  tlm?: HinvlfFrame;
+  tlmAt?: string;
+  cfg?: HinvlfFrame;
+  cfgAt?: string;
+  info?: HinvlfFrame;
+  lastNak?: HybridNak | null;
+  status?: string;
+  lastSeenAt?: string;
+  updatedAt?: string;
+}
+
+export type HybridMode = 'OFF' | 'OFFGRID' | 'LOAD' | 'CHG' | 'EXPORT';
+export type HybridNumberKey =
+  | 'PCHG'
+  | 'PEXP'
+  | 'PIMP'
+  | 'VEXP'
+  | 'VCUT'
+  | 'VRES'
+  | 'PMAX'
+  | 'PCMAX';
+export type HybridConfigKey = 'MODE' | HybridNumberKey;
+export type HybridConfig = { MODE?: HybridMode } & Partial<Record<HybridNumberKey, number>>;
+
+export interface HybridSetting {
+  userId: string;
+  deviceId: string;
+  config: HybridConfig; // các giá trị người dùng đã đặt (server giữ)
+  set: string;
+  updatedAt: string | null;
+  cfg: HinvlfFrame | null; // $CFG máy đang chạy
+  cfgAt: string | null;
+  src: string | null; // LOCAL | ESP
+  pending: HybridConfigKey[]; // chưa áp dụng xuống máy
+  lastNak: HybridNak | null;
+  status: string;
+}
+
+export interface HybridEnergyDay {
+  day: string;
+  edis: number; // Wh xả pin
+  echg: number; // Wh sạc pin
+  eimp: number; // Wh lấy lưới
+  eexp: number; // Wh đẩy lưới
+}
+
+export interface HybridEnergy {
+  from: string;
+  to: string;
+  today: HybridEnergyDay;
+  days: HybridEnergyDay[];
+}
+
+export type HybridCommand = 'FAULT_RST' | 'STOP' | 'RUN';
+
 export interface UserProfile {
   uid: string;
   email?: string;
@@ -203,8 +275,8 @@ export interface EnergyReport extends MonthEnergy {
 export interface ActivityEntry {
   _id: string;
   deviceId: string;
-  kind: 'inverter' | 'charger';
-  action: 'settings' | 'schedule' | 'grid-tie';
+  kind: 'inverter' | 'charger' | 'hybrid';
+  action: 'settings' | 'schedule' | 'grid-tie' | 'command';
   source: 'app' | 'web' | 'cms' | 'api' | 'system';
   actor: string | null;
   actorLabel: string | null;

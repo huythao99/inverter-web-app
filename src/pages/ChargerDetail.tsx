@@ -346,7 +346,7 @@ export function ChargerDetail({ publicToken, publicDeviceId }: ChargerDetailProp
   );
 }
 
-function ChargerStatusIndicator({ isOnline }: { isOnline: boolean }) {
+export function ChargerStatusIndicator({ isOnline }: { isOnline: boolean }) {
   return (
     <div className="inline-flex items-center space-x-1">
       <img
@@ -398,7 +398,7 @@ function InfoRow({
 }
 
 // ---- Overview Tab ----
-function ChargerOverviewTab({
+export function ChargerOverviewTab({
   latest,
   online,
   isLoading,
@@ -571,7 +571,7 @@ const VBAT_MAX = 100.0;
 const IBAT_MIN = 0.0;
 const IBAT_MAX = 100.0;
 
-function ChargerSettingsTab({
+export function ChargerSettingsTab({
   vbat,
   ibat,
   latest,

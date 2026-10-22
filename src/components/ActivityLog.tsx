@@ -1,5 +1,5 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { History, Settings, Clock, Power, Smartphone, Monitor, Shield, Server, RefreshCw } from 'lucide-react';
+import { History, Settings, Clock, Power, Terminal, Smartphone, Monitor, Shield, Server, RefreshCw } from 'lucide-react';
 import { getDeviceActivity } from '../services/api';
 import type { ActivityEntry } from '../types';
 import { LoadingSpinner } from './LoadingSpinner';
@@ -11,6 +11,7 @@ const ACTION = {
   settings: { label: 'Cài đặt', icon: Settings, cls: 'bg-blue-50 text-blue-600' },
   schedule: { label: 'Lịch trình', icon: Clock, cls: 'bg-violet-50 text-violet-600' },
   'grid-tie': { label: 'Hoà lưới', icon: Power, cls: 'bg-orange-50 text-orange-600' },
+  command: { label: 'Lệnh', icon: Terminal, cls: 'bg-rose-50 text-rose-600' },
 } as const;
 
 const SOURCE: Record<ActivityEntry['source'], { label: string; icon: typeof Smartphone }> = {
@@ -36,7 +37,7 @@ export function ActivityLog({
   kind = 'inverter',
 }: {
   deviceId: string;
-  kind?: 'inverter' | 'charger';
+  kind?: 'inverter' | 'charger' | 'hybrid';
 }) {
   const q = useInfiniteQuery({
     queryKey: ['device-activity', kind, deviceId],

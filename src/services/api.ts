@@ -12,6 +12,12 @@ import type {
   MonthlyTotals,
   ChartDataPoint,
   GridTieStatus,
+  HybridDevice,
+  HybridCommand,
+  HybridConfig,
+  HybridEnergy,
+  HybridLatest,
+  HybridSetting,
   ChargerDevice,
   ChargerLatest,
   ChargerSetting,
@@ -291,10 +297,14 @@ export const apiErrorMessage = (err: unknown, fallback: string): string => {
 export const getDeviceActivity = async (
   deviceId: string,
   before?: string,
-  kind: 'inverter' | 'charger' = 'inverter'
+  kind: 'inverter' | 'charger' | 'hybrid' = 'inverter'
 ): Promise<ActivityPage> => {
   const path =
-    kind === 'charger' ? `/chargers/${deviceId}/activity` : `/devices/${deviceId}/activity`;
+    kind === 'charger'
+      ? `/chargers/${deviceId}/activity`
+      : kind === 'hybrid'
+        ? `/hybrids/${deviceId}/activity`
+        : `/devices/${deviceId}/activity`;
   const response = await api.get(path, { params: { before, limit: 30 } });
   return response.data;
 };
@@ -458,6 +468,70 @@ export const updateChargerDevice = async (
   data: { deviceName?: string; description?: string }
 ): Promise<ChargerDevice> => {
   const response = await api.patch(`/chargers/${deviceId}`, data);
+  return response.data;
+};
+
+// ============================================================
+// Hybrid — /api/user/hybrids/* (Firebase JWT). STM32 HINVLF v1 inverter:
+// 9 settings (server-owned, the ESP32 re-applies them), commands, energy.
+// ============================================================
+
+export const createHybridClaim = async (): Promise<{ claim: string; expiresAt: string }> => {
+  const response = await api.post('/hybrids/claim');
+  return response.data;
+};
+
+export const getHybridDevices = async (): Promise<HybridDevice[]> => {
+  const response = await api.get('/hybrids');
+  return response.data?.hybrids ?? [];
+};
+
+export const getHybridDevice = async (deviceId: string): Promise<HybridDevice> => {
+  const response = await api.get(`/hybrids/${deviceId}`);
+  return response.data;
+};
+
+export const getHybridLatest = async (deviceId: string): Promise<HybridLatest> => {
+  const response = await api.get(`/hybrids/${deviceId}/data/latest`);
+  return response.data;
+};
+
+export const getHybridSetting = async (deviceId: string): Promise<HybridSetting> => {
+  const response = await api.get(`/hybrids/${deviceId}/settings`);
+  return response.data;
+};
+
+// Partial config; 400 { errors: [{ key, message }] } if invalid.
+export const updateHybridSetting = async (
+  deviceId: string,
+  data: HybridConfig
+): Promise<HybridSetting> => {
+  const response = await api.patch(`/hybrids/${deviceId}/settings`, data);
+  return response.data;
+};
+
+export const updateHybridDevice = async (
+  deviceId: string,
+  data: { deviceName?: string; description?: string }
+): Promise<HybridDevice> => {
+  const response = await api.patch(`/hybrids/${deviceId}`, data);
+  return response.data;
+};
+
+export const sendHybridCommand = async (
+  deviceId: string,
+  cmd: HybridCommand
+): Promise<{ cmd: HybridCommand; sentAt: string }> => {
+  const response = await api.post(`/hybrids/${deviceId}/command`, { cmd });
+  return response.data;
+};
+
+export const getHybridEnergy = async (
+  deviceId: string,
+  from?: string,
+  to?: string
+): Promise<HybridEnergy> => {
+  const response = await api.get(`/hybrids/${deviceId}/energy`, { params: { from, to } });
   return response.data;
 };
 

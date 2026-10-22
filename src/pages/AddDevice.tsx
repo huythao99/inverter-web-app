@@ -16,13 +16,14 @@ import {
   ExternalLink,
   Globe,
   Send,
+  Shuffle,
 } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
-import { createChargerClaim } from '../services/api';
+import { createChargerClaim, createHybridClaim } from '../services/api';
 
 type SetupStep = 1 | 2 | 3;
-type DeviceType = 'inverter' | 'charger';
+type DeviceType = 'inverter' | 'charger' | 'hybrid';
 // 'web': this page sends the WiFi config to the device.
 // 'device-page': open the device's own setup page (/connect), same as the app.
 type ConnectMethod = 'web' | 'device-page';
@@ -46,6 +47,7 @@ function detectManualSetup(): boolean {
 const AP_SSID: Record<DeviceType, string> = {
   inverter: 'GTIControl***',
   charger: 'ChargerControl***',
+  hybrid: 'HybridControl***',
 };
 
 export function AddDevice() {
@@ -74,7 +76,8 @@ export function AddDevice() {
 
   const userId = user?.uid || '';
   const apSsid = AP_SSID[deviceType];
-  const isCharger = deviceType === 'charger';
+  // Charger + hybrid firmware need a one-time claim (own broker account).
+  const isCharger = deviceType !== 'inverter';
   const claimCode = isCharger ? claim?.code : undefined;
 
   // New charger firmware needs a one-time claim to get its own broker account.
@@ -84,7 +87,8 @@ export function AddDevice() {
     setClaimLoading(true);
     setClaimError(false);
     try {
-      const res = await createChargerClaim();
+      const res =
+        deviceType === 'hybrid' ? await createHybridClaim() : await createChargerClaim();
       const exp = Date.parse(res.expiresAt);
       setClaim({
         code: res.claim,
@@ -95,7 +99,7 @@ export function AddDevice() {
     } finally {
       setClaimLoading(false);
     }
-  }, [claim]);
+  }, [claim, deviceType]);
 
   useEffect(() => {
     if (isCharger && currentStep === 1) void ensureClaim();
@@ -305,7 +309,13 @@ export function AddDevice() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Thêm thiết bị mới</h1>
             <p className="text-gray-500">
-              Cấu hình thiết bị {deviceType === 'charger' ? 'sạc (charger)' : 'inverter'} của bạn
+              Cấu hình thiết bị{' '}
+              {deviceType === 'charger'
+                ? 'sạc (charger)'
+                : deviceType === 'hybrid'
+                  ? 'hybrid'
+                  : 'inverter'}{' '}
+              của bạn
             </p>
           </div>
         </div>
@@ -344,7 +354,7 @@ export function AddDevice() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Loại thiết bị
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <button
                     type="button"
                     onClick={() => setDeviceType('inverter')}
@@ -379,6 +389,23 @@ export function AddDevice() {
                       <p className="text-xs text-gray-500">Bộ sạc</p>
                     </div>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeviceType('hybrid')}
+                    className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-colors text-left ${
+                      deviceType === 'hybrid'
+                        ? 'border-blue-600 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="p-2 bg-purple-100 rounded-lg">
+                      <Shuffle className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">Hybrid</p>
+                      <p className="text-xs text-gray-500">Sạc + hoà lưới</p>
+                    </div>
+                  </button>
                 </div>
               </div>
 
@@ -405,19 +432,19 @@ export function AddDevice() {
                   {claimLoading && (
                     <span className="flex items-center">
                       <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      Đang lấy mã thiết lập bộ sạc...
+                      Đang lấy mã thiết lập thiết bị...
                     </span>
                   )}
                   {!claimLoading && claim && !claimError && (
                     <span className="flex items-center">
                       <Check className="w-4 h-4 mr-2" />
-                      Đã có mã thiết lập bộ sạc (dùng trong 30 phút)
+                      Đã có mã thiết lập thiết bị (dùng trong 30 phút)
                     </span>
                   )}
                   {!claimLoading && claimError && (
                     <div className="space-y-2">
                       <p>
-                        Không lấy được mã thiết lập bộ sạc. Hãy giữ kết nối Internet (chưa vào
+                        Không lấy được mã thiết lập thiết bị. Hãy giữ kết nối Internet (chưa vào
                         WiFi thiết bị) rồi thử lại.
                       </p>
                       <button
@@ -549,7 +576,7 @@ export function AddDevice() {
 
                   {isCharger && !claimCode && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
-                      Chưa có mã thiết lập bộ sạc — bộ sạc đời mới có thể không thêm được vào tài
+                      Chưa có mã thiết lập thiết bị — thiết bị đời mới có thể không thêm được vào tài
                       khoản. Quay lại Bước 1 khi còn Internet để lấy mã.
                     </div>
                   )}

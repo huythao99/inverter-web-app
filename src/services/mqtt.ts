@@ -166,12 +166,23 @@ export function buildOtaStatusTopic(userId: string, deviceId: string): string {
 }
 
 // Charger topics (namespace tách biệt: charger/{uid}/{deviceId}/...)
-export function buildChargerDataTopic(userId: string, deviceId: string): string {
-  return `charger/${userId}/${deviceId}/data`;
+// ns 'hybrid': same messages under hybrid/{uid}/{deviceId}/...
+export type ChargerNs = 'charger' | 'hybrid';
+
+export function buildChargerDataTopic(
+  userId: string,
+  deviceId: string,
+  ns: ChargerNs = 'charger'
+): string {
+  return `${ns}/${userId}/${deviceId}/data`;
 }
 
-export function buildChargerStatusTopic(userId: string, deviceId: string): string {
-  return `charger/${userId}/${deviceId}/status`;
+export function buildChargerStatusTopic(
+  userId: string,
+  deviceId: string,
+  ns: ChargerNs = 'charger'
+): string {
+  return `${ns}/${userId}/${deviceId}/status`;
 }
 
 export function buildChargerOtaStatusTopic(userId: string, deviceId: string): string {

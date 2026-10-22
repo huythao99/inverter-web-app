@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { useSlidingIndicator } from '../hooks/useSlidingIndicator';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Cpu, RefreshCw, Plus, BatteryCharging, Eye } from 'lucide-react';
+import { Cpu, RefreshCw, Plus, BatteryCharging, Eye, Shuffle } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { DeviceCard } from '../components/DeviceCard';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import {
   getDevices,
   getChargerDevices,
+  getHybridDevices,
   getSharedWithMe,
   leaveSharedDevice,
   type SharedDevice,
@@ -17,7 +18,7 @@ import { SharedDeviceCard } from '../components/SharedDeviceCard';
 import { useAuth } from '../contexts/AuthContext';
 import { useDevicesOnline } from '../hooks/useDevicesOnline';
 
-type TabType = 'inverter' | 'charger';
+type TabType = 'inverter' | 'charger' | 'hybrid';
 
 export function Dashboard() {
   const { user } = useAuth();
@@ -52,22 +53,35 @@ export function Dashboard() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['shared-with-me'] }),
   });
 
+  const hybridQuery = useQuery({
+    queryKey: ['hybrid-devices', user?.uid],
+    queryFn: () => getHybridDevices(),
+    enabled: !!user?.uid,
+  });
+
   const chargers = chargerQuery.data ?? [];
+  const hybrids = hybridQuery.data ?? [];
   const inverters = data?.devices ?? [];
-  const isLoadingAny = isLoading || chargerQuery.isLoading;
+  const isLoadingAny = isLoading || chargerQuery.isLoading || hybridQuery.isLoading;
 
   const tabs = [
     { id: 'inverter' as TabType, label: 'Hoà lưới', icon: Cpu, count: inverters.length },
     { id: 'charger' as TabType, label: 'Bộ sạc', icon: BatteryCharging, count: chargers.length },
+    // Hybrid tab only once the user has one (no hybrid on the market yet).
+    ...(hybrids.length > 0 || activeTab === 'hybrid'
+      ? [{ id: 'hybrid' as TabType, label: 'Hybrid', icon: Shuffle, count: hybrids.length }]
+      : []),
   ];
 
-  const activeList = activeTab === 'inverter' ? inverters : chargers;
+  const activeList =
+    activeTab === 'inverter' ? inverters : activeTab === 'hybrid' ? hybrids : chargers;
   const tabSlider = useSlidingIndicator<HTMLElement>(tabs.findIndex((t) => t.id === activeTab));
   const sharedForTab = (sharedQuery.data?.devices ?? []).filter((d) => d.kind === activeTab);
 
   // Live online/offline badges (one wildcard MQTT subscription per kind).
   const inverterOnline = useDevicesOnline('inverter', inverters.map((d) => d.deviceId));
   const chargerOnline = useDevicesOnline('charger', chargers.map((d) => d.deviceId));
+  const hybridOnline = useDevicesOnline('hybrid', hybrids.map((d) => d.deviceId));
 
   return (
     <Layout>
@@ -85,6 +99,7 @@ export function Dashboard() {
               onClick={() => {
                 refetch();
                 chargerQuery.refetch();
+                hybridQuery.refetch();
                 sharedQuery.refetch();
               }}
               disabled={isRefetching || chargerQuery.isRefetching}
@@ -164,6 +179,16 @@ export function Dashboard() {
               Thử lại
             </button>
           </div>
+        ) : hybridQuery.error && activeTab === 'hybrid' ? (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+            <p className="text-red-600">Không thể tải danh sách thiết bị hybrid</p>
+            <button
+              onClick={() => hybridQuery.refetch()}
+              className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Thử lại
+            </button>
+          </div>
         ) : activeList.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 sm:p-12 text-center">
             {activeTab === 'inverter' ? (
@@ -174,12 +199,16 @@ export function Dashboard() {
             <h3 className="text-lg font-medium text-gray-900">
               {activeTab === 'inverter'
                 ? 'Chưa có thiết bị hoà lưới'
-                : 'Chưa có bộ sạc'}
+                : activeTab === 'hybrid'
+                  ? 'Chưa có thiết bị hybrid'
+                  : 'Chưa có bộ sạc'}
             </h3>
             <p className="text-gray-500 mt-2 mb-6">
               {activeTab === 'inverter'
                 ? 'Thêm thiết bị inverter đầu tiên để bắt đầu'
-                : 'Thêm bộ sạc (charger) đầu tiên để bắt đầu'}
+                : activeTab === 'hybrid'
+                  ? 'Thêm thiết bị hybrid đầu tiên để bắt đầu'
+                  : 'Thêm bộ sạc (charger) đầu tiên để bắt đầu'}
             </p>
             <Link
               to="/add-device"
@@ -191,7 +220,16 @@ export function Dashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-            {activeTab === 'inverter'
+            {activeTab === 'hybrid'
+              ? hybrids.map((device) => (
+                  <DeviceCard
+                    key={device._id}
+                    device={device}
+                    variant="hybrid"
+                    online={hybridOnline[device.deviceId] ?? 'checking'}
+                  />
+                ))
+              : activeTab === 'inverter'
               ? inverters.map((device) => (
                   <DeviceCard
                     key={device._id}

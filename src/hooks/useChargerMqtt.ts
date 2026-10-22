@@ -7,6 +7,7 @@ import {
   ConnectionStatus,
   buildChargerDataTopic,
   buildChargerStatusTopic,
+  type ChargerNs,
 } from '../services/mqtt';
 import { auth } from '../services/firebase';
 import type { ChargerLatest } from '../types';
@@ -87,7 +88,9 @@ export function frameToLatest(kv: Record<string, string>): Partial<ChargerLatest
 export function useChargerMqtt(
   deviceId: string | undefined,
   /** Owner uid in the topics (device shared by someone else). */
-  topicUid?: string
+  topicUid?: string,
+  /** 'hybrid': hybrid/{uid}/{id}/... topics, cache key ['hybrid-latest', id]. */
+  ns: ChargerNs = 'charger'
 ): UseChargerMqttResult {
   const queryClient = useQueryClient();
   const [data, setData] = useState<ChargerLatest | null>(null);
@@ -102,8 +105,8 @@ export function useChargerMqtt(
       const userId = topicUid || auth.currentUser?.uid;
       if (!userId || !deviceId) return;
 
-      const dataTopic = buildChargerDataTopic(userId, deviceId);
-      const statusTopic = buildChargerStatusTopic(userId, deviceId);
+      const dataTopic = buildChargerDataTopic(userId, deviceId, ns);
+      const statusTopic = buildChargerStatusTopic(userId, deviceId, ns);
 
       if (topic === dataTopic) {
         // Payload là chuỗi RAW ($...*CRC), không phải JSON
@@ -128,7 +131,7 @@ export function useChargerMqtt(
 
         setData((prev) => updater(prev ?? undefined));
         queryClient.setQueryData<ChargerLatest>(
-          ['charger-latest', deviceId],
+          [`${ns}-latest`, deviceId],
           (prev) => updater(prev)
         );
 
@@ -138,7 +141,7 @@ export function useChargerMqtt(
         markSeen();
       }
     },
-    [deviceId, topicUid, queryClient, markSeen]
+    [deviceId, topicUid, queryClient, markSeen, ns]
   );
 
   useEffect(() => {
@@ -158,10 +161,11 @@ export function useChargerMqtt(
         const client = await getMqttClient();
         if (!mounted) return;
 
-        const dataTopic = buildChargerDataTopic(currentUserId, currentDeviceId);
+        const dataTopic = buildChargerDataTopic(currentUserId, currentDeviceId, ns);
         const statusTopic = buildChargerStatusTopic(
           currentUserId,
-          currentDeviceId
+          currentDeviceId,
+          ns
         );
 
         client.subscribe([dataTopic, statusTopic], (err) => {
@@ -206,7 +210,7 @@ export function useChargerMqtt(
           .catch(() => {});
       }
     };
-  }, [deviceId, topicUid, handleMessage, trackConnection]);
+  }, [deviceId, topicUid, handleMessage, trackConnection, ns]);
 
   return {
     data,

@@ -5,7 +5,7 @@ import { auth } from '../services/firebase';
 import { OFFLINE_TIMEOUT, DISCONNECT_GRACE, RECONNECT_GRACE } from './useOnlineTracker';
 
 export type OnlineState = 'checking' | 'online' | 'offline';
-export type DeviceKind = 'inverter' | 'charger';
+export type DeviceKind = 'inverter' | 'charger' | 'hybrid';
 
 // Same rules as the mobile app (DeviceOnlineWatcher):
 //  - online  = a data/status message arrived within the last OFFLINE_TIMEOUT

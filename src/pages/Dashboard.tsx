@@ -17,6 +17,7 @@ import {
 import { SharedDeviceCard } from '../components/SharedDeviceCard';
 import { useAuth } from '../contexts/AuthContext';
 import { useDevicesOnline } from '../hooks/useDevicesOnline';
+import { useLegacyDevicesOnline } from '../hooks/useLegacyDevicesOnline';
 
 type TabType = 'inverter' | 'charger' | 'hybrid';
 
@@ -79,7 +80,10 @@ export function Dashboard() {
   const sharedForTab = (sharedQuery.data?.devices ?? []).filter((d) => d.kind === activeTab);
 
   // Live online/offline badges (one wildcard MQTT subscription per kind).
-  const inverterOnline = useDevicesOnline('inverter', inverters.map((d) => d.deviceId));
+  const inverterMqttOnline = useDevicesOnline('inverter', inverters.map((d) => d.deviceId));
+  // Old inverters (< 400) report through Firebase Realtime Database.
+  const inverterLegacyOnline = useLegacyDevicesOnline(inverters.map((d) => d.deviceId));
+  const inverterOnline = { ...inverterMqttOnline, ...inverterLegacyOnline };
   const chargerOnline = useDevicesOnline('charger', chargers.map((d) => d.deviceId));
   const hybridOnline = useDevicesOnline('hybrid', hybrids.map((d) => d.deviceId));
 

@@ -36,6 +36,15 @@ import { usePublicLiveStream } from '../hooks/usePublicLiveStream';
 import { useQuery as useRCQuery } from '@tanstack/react-query';
 import { fetchSupportConfig } from '../services/remoteConfig';
 import { useDeviceMqtt } from '../hooks/useDeviceMqtt';
+import { useDeviceFirebase } from '../hooks/useDeviceFirebase';
+import {
+  isLegacyInverter,
+  getLegacyLast,
+  getLegacySetting,
+  setLegacySetting,
+  getLegacySchedule,
+  setLegacySchedule,
+} from '../services/legacyInverter';
 import { FirmwareSection } from '../components/FirmwareSection';
 import { EnergyChart } from '../components/EnergyChart';
 import { Layout } from '../components/Layout';
@@ -100,9 +109,18 @@ export function DeviceDetail({ publicToken, publicDeviceId }: DeviceDetailProps 
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
   const [restartNotice, setRestartNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
+  // Old inverters (< 400) still use Firebase Realtime Database instead of
+  // MQTT + the API, like in the app: live data, setting and schedule.
+  const legacy = !isPublic && isLegacyInverter(deviceId);
+  const fbUid = viewOwner || user?.uid;
+
   // MQTT for real-time data (not for public links: no account, polled instead)
   const { isDeviceOnline: mqttOnline } = useDeviceMqtt(
-    isPublic ? undefined : deviceId,
+    isPublic || legacy ? undefined : deviceId,
+    viewOwner
+  );
+  const { isDeviceOnline: firebaseOnline } = useDeviceFirebase(
+    legacy ? deviceId : undefined,
     viewOwner
   );
 
@@ -115,27 +133,42 @@ export function DeviceDetail({ publicToken, publicDeviceId }: DeviceDetailProps 
 
   const settingsQuery = useQuery({
     queryKey: ['device-settings', deviceId],
-    queryFn: () => getDeviceSettings(deviceId!),
-    enabled: !!deviceId && activeTab === 'settings',
+    queryFn: async () =>
+      legacy
+        ? { userId: fbUid!, deviceId: deviceId!, value: await getLegacySetting(fbUid!, deviceId!) }
+        : getDeviceSettings(deviceId!),
+    enabled: !!deviceId && activeTab === 'settings' && (!legacy || !!fbUid),
   });
 
   const scheduleQuery = useQuery({
     queryKey: ['device-schedule', deviceId],
-    queryFn: () => getDeviceSchedule(deviceId!),
-    enabled: !!deviceId && activeTab === 'schedule',
+    queryFn: async () =>
+      legacy
+        ? { userId: fbUid!, deviceId: deviceId!, schedule: await getLegacySchedule(fbUid!, deviceId!) }
+        : getDeviceSchedule(deviceId!),
+    enabled: !!deviceId && activeTab === 'schedule' && (!legacy || !!fbUid),
   });
 
   const gridTieQuery = useQuery({
     queryKey: ['device-grid-tie', deviceId],
     queryFn: () => getGridTieStatus(deviceId!),
-    enabled: !!deviceId,
+    // Old inverters read their setting from Firebase: no remote grid-tie.
+    enabled: !!deviceId && !legacy,
   });
 
   const gridTieOff = gridTieQuery.data?.gridTieOff ?? false;
 
   const latestDataQuery = useQuery({
     queryKey: ['device-latest-data', deviceId],
-    queryFn: () => getLatestDeviceData(deviceId!),
+    queryFn: async () => {
+      if (!legacy) return getLatestDeviceData(deviceId!);
+      const last = fbUid ? await getLegacyLast(fbUid, deviceId!) : null;
+      return {
+        userId: fbUid ?? '',
+        deviceId: deviceId!,
+        value: last?.value ? String(last.value) : '',
+      };
+    },
     enabled:
       !!deviceId && (isPublic || activeTab === 'overview' || activeTab === 'settings'),
     // Fallback only: live data arrives through the public stream.
@@ -147,7 +180,9 @@ export function DeviceDetail({ publicToken, publicDeviceId }: DeviceDetailProps 
     : 0;
   const isDeviceOnline = isPublic
     ? live.isOnline || (latestAt > 0 && Date.now() - latestAt < PUBLIC_ONLINE_MS)
-    : mqttOnline;
+    : legacy
+      ? firebaseOnline
+      : mqttOnline;
 
   const monthlyTotalsQuery = useQuery({
     queryKey: ['device-monthly-totals', deviceId],
@@ -175,14 +210,22 @@ export function DeviceDetail({ publicToken, publicDeviceId }: DeviceDetailProps 
 
   // Mutations
   const updateSettingsMutation = useMutation({
-    mutationFn: (value: string) => updateDeviceSettings(deviceId!, value),
+    mutationFn: async (value: string) => {
+      if (!legacy) return updateDeviceSettings(deviceId!, value);
+      await setLegacySetting(fbUid!, deviceId!, value);
+      return { userId: fbUid!, deviceId: deviceId!, value };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['device-settings', deviceId] });
     },
   });
 
   const updateScheduleMutation = useMutation({
-    mutationFn: (schedule: string) => updateDeviceSchedule(deviceId!, schedule),
+    mutationFn: async (schedule: string) => {
+      if (!legacy) return updateDeviceSchedule(deviceId!, schedule);
+      await setLegacySchedule(fbUid!, deviceId!, schedule);
+      return { userId: fbUid!, deviceId: deviceId!, schedule };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['device-schedule', deviceId] });
     },
@@ -367,6 +410,7 @@ export function DeviceDetail({ publicToken, publicDeviceId }: DeviceDetailProps 
             <Share2 className="w-4 h-4" />
             <span>Chia sẻ</span>
           </button>
+          {!legacy && (
           <button
             onClick={() => setShowRestartConfirm(true)}
             className="p-2 hover:bg-blue-100 rounded-lg transition-colors text-blue-600 flex-shrink-0"
@@ -374,6 +418,7 @@ export function DeviceDetail({ publicToken, publicDeviceId }: DeviceDetailProps 
           >
             <RotateCcw className="w-5 h-5" />
           </button>
+          )}
           <button
             onClick={() => setShowDeleteConfirm(true)}
             className="p-2 hover:bg-red-100 rounded-lg transition-colors text-red-600 flex-shrink-0"
@@ -545,11 +590,12 @@ export function DeviceDetail({ publicToken, publicDeviceId }: DeviceDetailProps 
               onRetry={() => settingsQuery.refetch()}
               latestData={latestDataQuery.data}
               gridTieOff={gridTieOff}
+              showGridTie={!legacy}
               onToggleGridTie={(status) => gridTieMutation.mutate(status)}
               isTogglingGridTie={gridTieMutation.isPending || gridTieQuery.isLoading}
             />
           )}
-          {activeTab === 'settings' && deviceId && !readOnly && (
+          {activeTab === 'settings' && deviceId && !readOnly && !legacy && (
             <div className="mt-6">
               <FirmwareSection
                 deviceId={deviceId}
@@ -937,6 +983,7 @@ function SettingsTab({
   onRetry,
   latestData,
   gridTieOff,
+  showGridTie = true,
   onToggleGridTie,
   isTogglingGridTie,
 }: {
@@ -949,6 +996,7 @@ function SettingsTab({
   onRetry: () => void;
   latestData?: { value: string } | null;
   gridTieOff: boolean;
+  showGridTie?: boolean;
   onToggleGridTie: (status: number) => void;
   isTogglingGridTie: boolean;
 }) {
@@ -1028,6 +1076,7 @@ function SettingsTab({
   return (
     <div className="space-y-6">
       {/* Grid-tie (Hoà lưới) Section */}
+      {showGridTie && (
       <div className="bg-gray-50 rounded-xl p-4 shadow-sm">
         <h4 className="text-base font-semibold text-gray-900 mb-4">Hoà lưới</h4>
         <div className="border-t border-gray-200 pt-4">
@@ -1069,6 +1118,7 @@ function SettingsTab({
           )}
         </div>
       </div>
+      )}
 
       {/* Voltage Section */}
       <div className="bg-gray-50 rounded-xl p-4 shadow-sm">

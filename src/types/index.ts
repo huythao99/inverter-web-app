@@ -186,6 +186,38 @@ export interface HybridEnergy {
 
 export type HybridCommand = 'FAULT_RST' | 'STOP' | 'RUN';
 
+/** One firmware version with its release notes ("Cập nhật" tab). */
+export interface FirmwareRelease {
+  version: string;
+  notes: string;
+  date: string | null;
+  installed: boolean; // the device runs it
+  isNew: boolean; // newer than what the device runs
+}
+
+/** GET /api/user/hybrids/:id/firmware */
+export interface HybridFirmwareOverview {
+  esp: {
+    currentVersion: string | null;
+    targetVersion: string | null;
+    updateAvailable: boolean;
+    releases: FirmwareRelease[];
+  };
+  stm: {
+    version: string | null;
+    chip: string | null;
+    voltage: string | null;
+    reportedAt: string | null;
+    supported: boolean;
+    minEspVersion: string;
+    target: { version: string; crc32: string } | null;
+    updateAvailable: boolean;
+    reason: null | 'esp_firmware_too_old' | 'version_unknown' | 'no_firmware';
+    lastOta: { status: string; progress?: number | null; message?: string | null; at: string } | null;
+    releases: FirmwareRelease[];
+  };
+}
+
 export interface UserProfile {
   uid: string;
   email?: string;

@@ -16,6 +16,7 @@ import type {
   HybridCommand,
   HybridConfig,
   HybridEnergy,
+  HybridFirmwareOverview,
   HybridLatest,
   HybridSetting,
   ChargerDevice,
@@ -533,6 +534,26 @@ export const sendHybridCommand = async (
   cmd: HybridCommand
 ): Promise<{ cmd: HybridCommand; sentAt: string }> => {
   const response = await api.post(`/hybrids/${deviceId}/command`, { cmd });
+  return response.data;
+};
+
+// "Cập nhật" tab: versions + release notes of the ESP32 and the STM32.
+export const getHybridFirmware = async (deviceId: string): Promise<HybridFirmwareOverview> => {
+  const response = await api.get(`/hybrids/${deviceId}/firmware`);
+  return response.data;
+};
+
+export const updateHybridEsp = async (
+  deviceId: string
+): Promise<{ targetVersion: string; currentVersion: string | null }> => {
+  const response = await api.post(`/hybrids/${deviceId}/firmware/update`);
+  return response.data;
+};
+
+export const updateHybridStm = async (
+  deviceId: string
+): Promise<{ targetVersion: string; crc32: string }> => {
+  const response = await api.post(`/hybrids/${deviceId}/stm/update`);
   return response.data;
 };
 

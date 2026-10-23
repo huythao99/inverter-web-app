@@ -8,6 +8,7 @@ import {
   BarChart3,
   CheckCircle2,
   Clock,
+  Download,
   History,
   Lock,
   Play,
@@ -21,6 +22,7 @@ import { Layout } from '../components/Layout';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ActivityLog } from '../components/ActivityLog';
 import { HybridEnergyFlow } from '../components/HybridEnergyFlow';
+import { HybridFirmwareTab } from '../components/HybridFirmwareTab';
 import { DeleteDeviceButton } from '../components/DeleteDeviceButton';
 import { useHybridMqtt } from '../hooks/useHybridMqtt';
 import {
@@ -61,7 +63,7 @@ import { ChargerStatusIndicator } from './ChargerDetail';
 
 const asset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
 
-type TabType = 'overview' | 'settings' | 'history';
+type TabType = 'overview' | 'settings' | 'update' | 'history';
 
 /**
  * Hybrid (inverter biến áp sắt, STM32 HINVLF v1): luồng năng lượng, trạng
@@ -155,6 +157,7 @@ export function HybridDetail() {
   const tabs = [
     { id: 'overview' as TabType, label: 'Tổng quan', icon: BarChart3 },
     { id: 'settings' as TabType, label: 'Cài đặt', icon: Settings },
+    { id: 'update' as TabType, label: 'Cập nhật', icon: Download },
     { id: 'history' as TabType, label: 'Lịch sử', icon: History },
   ];
 
@@ -291,6 +294,10 @@ export function HybridDetail() {
               />
             )}
           </div>
+        )}
+
+        {activeTab === 'update' && deviceId && (
+          <HybridFirmwareTab deviceId={deviceId} isOnline={isDeviceOnline} />
         )}
 
         {activeTab === 'history' && deviceId && (

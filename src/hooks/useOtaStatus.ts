@@ -24,7 +24,9 @@ export interface OtaStatus {
  */
 export function useOtaStatus(
   deviceId: string | undefined,
-  kind: 'esp32' | 'stm32' = 'esp32'
+  kind: 'esp32' | 'stm32' = 'esp32',
+  /** Topic namespace: 'hybrid' for hybrid/{uid}/{id}/... */
+  ns: 'inverter' | 'hybrid' = 'inverter'
 ) {
   const [ota, setOta] = useState<OtaStatus | null>(null);
 
@@ -32,9 +34,11 @@ export function useOtaStatus(
     const uid = auth.currentUser?.uid;
     if (!uid || !deviceId) return;
     const topic =
-      kind === 'stm32'
-        ? `inverter/${uid}/${deviceId}/stm/ota/status`
-        : buildOtaStatusTopic(uid, deviceId);
+      ns === 'hybrid'
+        ? `hybrid/${uid}/${deviceId}/${kind === 'stm32' ? 'stm/ota/status' : 'ota/status'}`
+        : kind === 'stm32'
+          ? `inverter/${uid}/${deviceId}/stm/ota/status`
+          : buildOtaStatusTopic(uid, deviceId);
     let mounted = true;
 
     const unsubscribeMessage = onMessage((t, payload) => {
@@ -69,7 +73,7 @@ export function useOtaStatus(
           // ignore during cleanup
         });
     };
-  }, [deviceId, kind]);
+  }, [deviceId, kind, ns]);
 
   const reset = useCallback(() => setOta(null), []);
   return { ota, reset };

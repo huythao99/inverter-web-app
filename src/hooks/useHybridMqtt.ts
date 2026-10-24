@@ -37,7 +37,8 @@ export function useHybridMqtt(deviceId: string | undefined) {
       const now = new Date().toISOString();
       let patch: Partial<HybridLatest> = {};
       if (f.type === 'TLM') patch = { tlm: f.items, tlmAt: now };
-      else if (f.type === 'CFG') patch = { cfg: f.items, cfgAt: now };
+      // A new $CFG means the device re-reported its settings: an older NAK is over.
+      else if (f.type === 'CFG') patch = { cfg: f.items, cfgAt: now, lastNak: null };
       else if (f.type === 'INFO') patch = { info: f.items };
       else if (f.type === 'NAK') {
         patch = {

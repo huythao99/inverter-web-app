@@ -177,10 +177,22 @@ export interface HybridEnergyDay {
   eexp: number; // Wh đẩy lưới
 }
 
+export interface HybridEnergyTotals {
+  edis: number;
+  echg: number;
+  eimp: number;
+  eexp: number;
+}
+
 export interface HybridEnergy {
   from: string;
   to: string;
   today: HybridEnergyDay;
+  /** Current VN month (sum of its days). Older backends: missing. */
+  month?: HybridEnergyTotals & { month: string };
+  /** Lifetime totals from the STM32 flash ($ETOT); null on older STM firmware. */
+  total?: HybridEnergyTotals | null;
+  totalAt?: string | null;
   days: HybridEnergyDay[];
 }
 

@@ -20,6 +20,18 @@ body {
   transform: translateY(-50%);
   animation: energy-flow 1.4s linear infinite;
 }
+/* Same, top -> bottom (inverter -> home). */
+@keyframes energy-flow-v {
+  from { top: 0; opacity: 0.2; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  to { top: calc(100% - 10px); opacity: 0.2; }
+}
+.energy-flow-dot-v {
+  transform: translateX(-50%);
+  animation: energy-flow-v 1.4s linear infinite;
+}
 @media (prefers-reduced-motion: reduce) {
   .energy-flow-dot { animation: none; left: calc(50% - 5px); }
+  .energy-flow-dot-v { animation: none; top: calc(50% - 5px); }
 }

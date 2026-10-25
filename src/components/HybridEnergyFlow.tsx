@@ -33,6 +33,27 @@ function Link({ watts, reverse, color }: { watts: number; reverse: boolean; colo
   );
 }
 
+/** Vertical link inverter -> home, same look as Link (dot moving down). */
+function VLink({ watts, color }: { watts: number; color: string }) {
+  const active = Math.abs(watts) >= ACTIVE_W;
+  return (
+    <div className="relative w-6 h-10 sm:h-12" aria-hidden>
+      <div
+        className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-[3px] rounded-full"
+        style={{ background: active ? `${color}55` : '#e5e7eb' }}
+      />
+      {active ? (
+        <span
+          className="energy-flow-dot-v absolute left-1/2 w-2.5 h-2.5 rounded-full"
+          style={{ background: color, boxShadow: `0 0 0 4px ${color}33` }}
+        />
+      ) : (
+        <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-gray-300" />
+      )}
+    </div>
+  );
+}
+
 function Node({ ring, children }: { ring: string; children: React.ReactNode }) {
   return (
     <div
@@ -97,7 +118,7 @@ export function HybridEnergyFlow({ latest, online }: { latest?: HybridLatest; on
           </Node>
         </div>
         <div className="flex justify-center">
-          <div className="w-[3px] h-5 rounded-full" style={{ background: (load ?? 0) >= ACTIVE_W ? '#f59e0b88' : '#e5e7eb' }} />
+          <VLink watts={load ?? 0} color="#f59e0b" />
         </div>
         <div className="flex justify-center">
           <Node ring="border-amber-400">

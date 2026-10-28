@@ -404,11 +404,11 @@ export function DeviceDetail({ publicToken, publicDeviceId }: DeviceDetailProps 
           <>
           <button
             onClick={() => setShowShare(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-600 text-white text-sm font-medium shadow-sm hover:bg-blue-700 transition-colors flex-shrink-0"
+            className="p-2 hover:bg-blue-100 rounded-lg transition-colors text-blue-600 flex-shrink-0"
             title="Chia sẻ cho người khác xem (mời qua email hoặc tạo link)"
+            aria-label="Chia sẻ"
           >
-            <Share2 className="w-4 h-4" />
-            <span>Chia sẻ</span>
+            <Share2 className="w-5 h-5" />
           </button>
           {!legacy && (
           <button

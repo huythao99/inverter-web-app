@@ -142,7 +142,7 @@ export interface HybridLatest {
   updatedAt?: string;
 }
 
-export type HybridMode = 'OFF' | 'OFFGRID' | 'LOAD' | 'CHG' | 'EXPORT';
+export type HybridMode = 'OFF' | 'OFFGRID' | 'LOAD' | 'CHG' | 'EXPORT' | 'ACCOUPLE' | 'LOADACC';
 export type HybridNumberKey =
   | 'PCHG'
   | 'PEXP'

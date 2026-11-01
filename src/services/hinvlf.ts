@@ -19,7 +19,17 @@ export const ST_LABEL: Record<string, string> = {
 
 export const MODES: { id: HybridMode; label: string; desc: string }[] = [
   { id: 'LOAD', label: 'Bám tải', desc: 'Hòa lưới, phát đủ cho tải trong nhà (cần CT lưới)' },
+  {
+    id: 'LOADACC',
+    label: 'Bám tải + sạc dư',
+    desc: 'Bám tải; khi inverter PV khác trong nhà phát dư ra lưới thì sạc pin phần dư (cần CT lưới, máy từ 5.4.10)',
+  },
   { id: 'EXPORT', label: 'Đẩy lưới', desc: 'Hòa lưới, đẩy công suất cố định lên lưới' },
+  {
+    id: 'ACCOUPLE',
+    label: 'Sạc điện dư',
+    desc: 'Không xả pin; chỉ sạc phần điện dư đang đẩy ra lưới từ inverter PV khác (cần CT lưới)',
+  },
   { id: 'CHG', label: 'Sạc từ lưới', desc: 'Lấy điện lưới sạc pin' },
   { id: 'OFFGRID', label: 'Độc lập', desc: 'Không hòa lưới, tự phát điện từ pin' },
   { id: 'OFF', label: 'Tắt', desc: 'Không phát, không sạc' },
@@ -45,7 +55,7 @@ export const FLT_LABEL: Record<string, string> = {
   '4': 'F4 – Pin yếu (dưới ngưỡng ngắt xả)',
   '5': 'F5 – Bão hòa biến áp',
   '6': 'F6 – Kiểm tra cực tính thất bại',
-  '7': 'F7 – Lỗi CT lưới (thiếu / hở / ngược)',
+  '7': 'F7 – Lỗi CT lưới (thiếu / hở / ngược; bám tải, sạc dư)',
   '8': 'Quá nhiệt (> 85 °C)',
   '9': 'Hở mạch cảm biến nhiệt',
   '10': 'Lỗi cảm biến / bộ đo (tắt bật lại máy)',
@@ -78,11 +88,32 @@ export interface FieldDef {
 
 export const FIELDS: FieldDef[] = [
   { key: 'PEXP', label: 'Công suất đẩy lưới', unit: 'W', step: 10, hint: 'Chế độ Đẩy lưới', modes: ['EXPORT'] },
-  { key: 'VEXP', label: 'Áp ngừng đẩy lưới', unit: 'V', step: 0.1, hint: 'Pin dưới mức này thì ngừng đẩy (Đẩy lưới)', modes: ['EXPORT'] },
-  { key: 'PIMP', label: 'Công suất nhận lưới', unit: 'W', step: 10, hint: 'Bám tải: giữ mức lấy lưới này (âm = đẩy ra)', modes: ['LOAD'] },
-  { key: 'PCHG', label: 'Công suất sạc pin', unit: 'W', step: 10, hint: 'Chế độ Sạc từ lưới', modes: ['CHG'] },
-  { key: 'VCUT', label: 'Pin ngắt xả', unit: 'V', step: 0.1, hint: 'Pin xuống mức này thì ngừng xả' },
-  { key: 'VRES', label: 'Pin chạy lại', unit: 'V', step: 0.1, hint: 'Pin lên lại mức này thì chạy tiếp' },
+  {
+    key: 'VEXP',
+    label: 'Áp dừng xả (hòa lưới)',
+    unit: 'V',
+    step: 0.1,
+    hint: 'Khi hòa lưới: pin về gần mức này thì giảm dần công suất xả, giữ pin ở mức này',
+    modes: ['LOAD', 'EXPORT', 'LOADACC'],
+  },
+  {
+    key: 'PIMP',
+    label: 'Công suất nhận lưới',
+    unit: 'W',
+    step: 10,
+    hint: 'Bám tải: giữ mức lấy lưới này (âm = đẩy ra)',
+    modes: ['LOAD', 'LOADACC'],
+  },
+  {
+    key: 'PCHG',
+    label: 'Công suất sạc pin',
+    unit: 'W',
+    step: 10,
+    hint: 'Sạc từ lưới; mức sạc tối đa từ điện dư (Sạc điện dư, Bám tải + sạc dư)',
+    modes: ['CHG', 'ACCOUPLE', 'LOADACC'],
+  },
+  { key: 'VCUT', label: 'Pin ngắt xả (độc lập)', unit: 'V', step: 0.1, hint: 'Khi chạy độc lập: pin xuống mức này thì ngừng xả', modes: ['OFFGRID'] },
+  { key: 'VRES', label: 'Pin chạy lại (độc lập)', unit: 'V', step: 0.1, hint: 'Khi chạy độc lập: pin lên lại mức này thì chạy tiếp', modes: ['OFFGRID'] },
   { key: 'PMAX', label: 'Công suất tối đa', unit: 'W', step: 100, hint: '500 – 6000 W' },
   { key: 'PCMAX', label: 'Công suất sạc tối đa', unit: 'W', step: 100, hint: '100 – 6000 W' },
 ];

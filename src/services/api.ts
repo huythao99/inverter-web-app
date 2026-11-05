@@ -28,6 +28,7 @@ import type {
   ShareGroupInput,
   ShareGroupOverview,
   ActivityPage,
+  HybridAdvanced,
 } from '../types';
 
 // In dev mode, use relative URL so Vite proxy can forward to VITE_API_URL
@@ -534,6 +535,30 @@ export const sendHybridCommand = async (
   cmd: HybridCommand
 ): Promise<{ cmd: HybridCommand; sentAt: string }> => {
   const response = await api.post(`/hybrids/${deviceId}/command`, { cmd });
+  return response.data;
+};
+
+// Advanced settings (STM32 >= 5.4.12). The password is sent with each change
+// and kept in memory only (never stored).
+export const getHybridAdvanced = async (deviceId: string): Promise<HybridAdvanced> => {
+  const response = await api.get(`/hybrids/${deviceId}/advanced`);
+  return response.data;
+};
+
+export const readHybridAdvanced = async (
+  deviceId: string,
+  watch?: number
+): Promise<HybridAdvanced> => {
+  const response = await api.post(`/hybrids/${deviceId}/advanced/read`, watch ? { watch } : {});
+  return response.data;
+};
+
+export const setHybridAdvanced = async (
+  deviceId: string,
+  pw: string,
+  set?: Record<string, string | number>
+): Promise<{ set: string; requestAt: string }> => {
+  const response = await api.post(`/hybrids/${deviceId}/advanced`, set ? { pw, set } : { pw });
   return response.data;
 };
 

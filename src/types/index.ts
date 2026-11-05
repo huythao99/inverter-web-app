@@ -196,7 +196,22 @@ export interface HybridEnergy {
   days: HybridEnergyDay[];
 }
 
-export type HybridCommand = 'FAULT_RST' | 'STOP' | 'RUN';
+export type HybridCommand = 'FAULT_RST' | 'STOP' | 'RUN' | 'SAVE';
+
+/** Advanced settings menu (STM32 >= 5.4.12): GET /hybrids/:id/advanced. */
+export interface HybridAdvanced {
+  /** false: this STM32 firmware has no advanced menu. */
+  supported: boolean;
+  /** Last $ADV (strings as the STM32 sent them). */
+  adv: Record<string, string> | null;
+  advAt: string | null;
+  requestAt: string | null;
+  /** Outcome of the last change; null while it is on its way. */
+  result: { ok: boolean; err?: string; key?: string; at: string } | null;
+  src: string | null;
+  mode: string | null;
+  ist: string | null;
+}
 
 /** One firmware version with its release notes ("Cập nhật" tab). */
 export interface FirmwareRelease {

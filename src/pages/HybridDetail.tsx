@@ -23,6 +23,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ActivityLog } from '../components/ActivityLog';
 import { HybridEnergyFlow } from '../components/HybridEnergyFlow';
 import { HybridFirmwareTab } from '../components/HybridFirmwareTab';
+import { HybridAdvancedSection } from '../components/HybridAdvanced';
 import { DeleteDeviceButton } from '../components/DeleteDeviceButton';
 import { useHybridMqtt } from '../hooks/useHybridMqtt';
 import {
@@ -317,6 +318,7 @@ const CMD_LABEL: Record<HybridCommand, string> = {
   FAULT_RST: 'Xóa lỗi',
   STOP: 'Dừng máy',
   RUN: 'Chạy máy',
+  SAVE: 'Lưu vào máy',
 };
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -760,6 +762,8 @@ function HybridSettingsForm({
           Bấm Lưu: thiết bị gửi thay đổi xuống máy và máy tự lưu lại. Chỉnh trên máy cũng được, trang luôn hiện cài đặt máy đang chạy.
         </p>
       </section>
+
+      <HybridAdvancedSection deviceId={deviceId} online={online} />
     </div>
   );
 }

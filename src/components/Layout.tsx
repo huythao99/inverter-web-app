@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, HousePlug, LayoutGrid, LogOut, Sun, User } from 'lucide-react';
+import { BarChart3, HousePlug, LayoutGrid, LogOut, Sun, User, Wrench } from 'lucide-react';
 import { SupportBanner } from './SupportBanner';
 import { useSlidingIndicator } from '../hooks/useSlidingIndicator';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,7 +12,10 @@ const TABS = [
     label: 'Thiết bị',
     icon: LayoutGrid,
     match: (p: string) =>
-      !p.startsWith('/home-assistant') && !p.startsWith('/overview') && !p.startsWith('/share'),
+      !p.startsWith('/home-assistant') &&
+      !p.startsWith('/overview') &&
+      !p.startsWith('/share') &&
+      !p.startsWith('/tools'),
   },
   // "Tổng quan" holds two sub-tabs: Sản lượng (/overview) and Chia sẻ công suất (/share).
   {
@@ -22,6 +25,7 @@ const TABS = [
     match: (p: string) => p.startsWith('/overview') || p.startsWith('/share'),
   },
   { to: '/home-assistant', label: 'Home Assistant', icon: HousePlug, match: (p: string) => p.startsWith('/home-assistant') },
+  { to: '/tools', label: 'Công cụ', icon: Wrench, match: (p: string) => p.startsWith('/tools') },
 ];
 
 interface LayoutProps {

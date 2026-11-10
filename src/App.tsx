@@ -14,6 +14,7 @@ import { EnergyOverview } from './pages/EnergyOverview';
 import { PowerShare } from './pages/PowerShare';
 import { ShareGroupEditor } from './pages/ShareGroupEditor';
 import { ShareGroupOverview } from './pages/ShareGroupOverview';
+import { Tools } from './pages/Tools';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -70,6 +71,22 @@ function App() {
               element={
                 <ProtectedRoute>
                   <AddDevice />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tools"
+              element={
+                <ProtectedRoute>
+                  <Tools />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tools/:tool"
+              element={
+                <ProtectedRoute>
+                  <Tools />
                 </ProtectedRoute>
               }
             />

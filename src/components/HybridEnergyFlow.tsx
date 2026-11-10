@@ -54,11 +54,11 @@ function VLink({ watts, color }: { watts: number; color: string }) {
   );
 }
 
-function Node({ ring, children }: { ring: string; children: React.ReactNode }) {
+function Node({ ring, big, children }: { ring: string; big?: boolean; children: React.ReactNode }) {
+  // The inverter (middle) is larger: it shows a power value up to 5 digits.
+  const size = big ? 'w-[76px] h-[76px] sm:w-[96px] sm:h-[96px]' : 'w-[64px] h-[64px] sm:w-[80px] sm:h-[80px]';
   return (
-    <div
-      className={`shrink-0 grid place-items-center rounded-full bg-white border-[3px] ${ring} w-[64px] h-[64px] sm:w-[80px] sm:h-[80px]`}
-    >
+    <div className={`shrink-0 grid place-items-center rounded-full bg-white border-[3px] ${ring} ${size}`}>
       <div className="flex flex-col items-center">{children}</div>
     </div>
   );
@@ -74,6 +74,22 @@ function Value({ title, watts, sub, cls }: { title: string; watts: number | unde
       </p>
       <p className="text-[11px] sm:text-xs text-gray-500 text-center leading-tight">{sub}</p>
     </div>
+  );
+}
+
+/**
+ * Inverter power inside its circle: up to 4 digits "802W" / "4520W"; from
+ * 10 kW "12.3kW"; a smaller font for 5-character values so nothing overflows.
+ */
+function InverterPower({ watts }: { watts: number | undefined }) {
+  if (watts === undefined) {
+    return <span className="text-sm sm:text-base font-bold text-gray-800 leading-tight">--</span>;
+  }
+  const w = Math.round(Math.abs(watts));
+  const text = w >= 10000 ? `${(w / 1000).toFixed(w >= 100000 ? 0 : 1)}kW` : `${w}W`;
+  const size = text.length > 5 ? 'text-xs sm:text-sm' : 'text-sm sm:text-base';
+  return (
+    <span className={`${size} font-bold text-gray-800 tabular-nums leading-tight whitespace-nowrap`}>{text}</span>
   );
 }
 
@@ -102,11 +118,9 @@ export function HybridEnergyFlow({ latest, online }: { latest?: HybridLatest; on
           </Node>
           {/* + xả: pin → inverter; − sạc: inverter → pin */}
           <Link watts={pinv ?? 0} reverse={(pinv ?? 0) < 0} color="#3b82f6" />
-          <Node ring="border-gray-200">
+          <Node ring="border-gray-200" big>
             <span className="text-[10px] sm:text-xs font-semibold text-gray-400 leading-tight">INVERTER</span>
-            <span className="text-sm sm:text-base font-bold text-gray-800 tabular-nums leading-tight">
-              {pinv !== undefined ? `${Math.round(Math.abs(pinv))}W` : '--'}
-            </span>
+            <InverterPower watts={pinv} />
           </Node>
           {/* + lấy lưới: lưới → inverter (ngược chiều); − đẩy lưới: inverter → lưới */}
           <Link watts={pgrid ?? 0} reverse={(pgrid ?? 0) > 0} color="#10b981" />

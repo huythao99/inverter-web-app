@@ -1,13 +1,12 @@
 import { Home, Thermometer, UtilityPole, Fan } from 'lucide-react';
-import type { HybridLatest } from '../types';
-import { IST_LABEL, num } from '../services/hinvlf';
-import batteryIcon from '../assets/energy/icon_storage_battery.svg';
+import type { HybridLatest } from '../../types';
+import { ACTIVE_W, IST_LABEL, hybridFlow, num } from '../../services/hinvlf';
+import batteryIcon from '../../assets/energy/icon_storage_battery.svg';
+import { CARD } from './styles';
 
 // "Luồng năng lượng" của hybrid: Pin ⇄ Inverter ⇄ Lưới, Inverter → Nhà.
 // PINV: + xả pin, − sạc pin. PGRID (qua CT): + lấy lưới, − đẩy lưới.
 // Tải trong nhà ≈ PINV + PGRID (không có CT thì PGRID ≈ 0).
-
-const ACTIVE_W = 10;
 
 function Link({ watts, reverse, color }: { watts: number; reverse: boolean; color: string }) {
   const active = Math.abs(watts) >= ACTIVE_W;
@@ -95,14 +94,12 @@ function InverterPower({ watts }: { watts: number | undefined }) {
 
 export function HybridEnergyFlow({ latest, online }: { latest?: HybridLatest; online: boolean }) {
   const t = latest?.tlm ?? {};
-  const pinv = num(t.PINV);
-  const pgrid = num(t.PGRID);
-  const load = pinv !== undefined ? Math.max(0, pinv + (pgrid ?? 0)) : undefined;
-  const gridOk = t.GRID === '1';
+  const flow = hybridFlow(t);
+  const { pinv, pgrid, load, gridOk } = flow;
   const vbat = num(t.VBAT);
 
   return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-white/60 px-3 py-5 sm:p-6">
+    <div className={`${CARD} px-3 py-5 sm:p-6`}>
       <p className="text-center text-base sm:text-lg font-semibold tracking-[0.2em] text-gray-400 uppercase">
         Luồng năng lượng
       </p>
@@ -159,13 +156,13 @@ export function HybridEnergyFlow({ latest, online }: { latest?: HybridLatest; on
           <Value
             title="Pin"
             watts={pinv}
-            sub={pinv === undefined ? '' : pinv >= ACTIVE_W ? 'Đang xả' : pinv <= -ACTIVE_W ? 'Đang sạc' : 'Nghỉ'}
+            sub={flow.batteryState}
             cls="text-blue-600"
           />
           <Value
             title="Lưới"
             watts={pgrid}
-            sub={pgrid === undefined ? '' : pgrid >= ACTIVE_W ? 'Đang lấy lưới' : pgrid <= -ACTIVE_W ? 'Đang đẩy lưới' : gridOk ? 'Có lưới' : 'Không có lưới'}
+            sub={flow.gridState}
             cls="text-emerald-600"
           />
           <Value title="Nhà" watts={load} sub="Ước tính" cls="text-amber-500" />

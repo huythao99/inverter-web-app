@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircuitBoard, Cpu, RefreshCw, Sparkles } from 'lucide-react';
-import { getHybridFirmware, updateHybridEsp, updateHybridStm } from '../services/api';
-import type { FirmwareRelease } from '../types';
-import { useOtaStatus } from '../hooks/useOtaStatus';
-import type { OtaStatus } from '../hooks/useOtaStatus';
-import { LoadingSpinner } from './LoadingSpinner';
+import { getHybridFirmware, updateHybridEsp, updateHybridStm } from '../../services/api';
+import type { FirmwareRelease } from '../../types';
+import { useOtaStatus } from '../../hooks/useOtaStatus';
+import type { OtaStatus } from '../../hooks/useOtaStatus';
+import { OTA_TERMINAL, STM_OTA_LABEL, STM_OTA_REASON, stmOtaMessage, stmOtaPercent } from '../../services/stmOta';
+import { fmtDate } from '../../utils/fmt';
+import { LoadingSpinner } from '../LoadingSpinner';
+import { GlassCard } from './ui';
 
 // ---------------------------------------------------------------------------
 // "Cập nhật" tab of a hybrid: the ESP32 controller and the STM32 power board,
@@ -17,8 +20,7 @@ import { LoadingSpinner } from './LoadingSpinner';
 
 /** No status from the device this long after the command -> it didn't answer. */
 const RESPONSE_TIMEOUT_MS = 45000;
-const TERMINAL = new Set(['success', 'failed', 'rescue_needed']);
-const running = (o: OtaStatus | null) => !!o && !TERMINAL.has(o.status);
+const running = (o: OtaStatus | null) => !!o && !OTA_TERMINAL.has(o.status);
 
 const errorText = (err: unknown, fallback: string) =>
   (err as { response?: { data?: { message?: string } } })?.response?.data?.message || fallback;
@@ -30,34 +32,6 @@ const ESP_LABEL: Record<string, string> = {
   success: 'Cập nhật thành công, thiết bị đang khởi động lại',
   failed: 'Cập nhật thất bại',
 };
-
-const STM_LABEL: Record<string, string> = {
-  starting: 'Đang kiểm tra bản firmware',
-  downloading: 'Đang tải firmware',
-  verifying: 'Đang kiểm tra file firmware',
-  flashing: 'Đang nạp mạch công suất (máy ngừng phát ~40 giây)',
-  success: 'Cập nhật mạch công suất thành công',
-  failed: 'Cập nhật mạch công suất thất bại',
-  rescue_needed: 'Nạp lỗi giữa chừng — mạch đang chờ nạp lại, bấm "Thử nạp lại"',
-};
-
-const STM_REASON: Record<string, string> = {
-  esp_firmware_too_old: 'Cần cập nhật bộ điều khiển (ESP32) trước',
-  version_unknown: 'Chưa biết phiên bản mạch công suất (máy chưa báo)',
-  no_firmware: 'Chưa có bản firmware cho loại mạch này',
-};
-
-/** STM32: download 0-20 %, verify ~22 %, flash 25-100 %. */
-function stmPercent(o: OtaStatus): number {
-  const p = Math.max(0, Math.min(100, o.progress ?? 0));
-  if (o.status === 'downloading') return Math.round(p * 0.2);
-  if (o.status === 'verifying') return 22;
-  if (o.status === 'flashing' || o.status === 'installing') return Math.round(25 + p * 0.75);
-  if (o.status === 'success') return 100;
-  return 0;
-}
-
-const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('vi-VN') : '');
 
 function NotesList({ text }: { text: string }) {
   const lines = text
@@ -124,13 +98,9 @@ function Progress({ label, pct, tone, detail }: { label: string; pct: number | n
 
 function Card({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
-    <section className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-white/60 p-4 sm:p-5 space-y-3">
-      <h4 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-        {icon}
-        {title}
-      </h4>
-      {children}
-    </section>
+    <GlassCard icon={icon} title={title}>
+      <div className="space-y-3">{children}</div>
+    </GlassCard>
   );
 }
 
@@ -230,7 +200,7 @@ export function HybridFirmwareTab({ deviceId, isOnline }: { deviceId: string; is
     if (!stmLive) return;
     setStmSince(null);
     setStmNote(null);
-    if (!TERMINAL.has(stmLive.status)) return;
+    if (!OTA_TERMINAL.has(stmLive.status)) return;
     const t1 = setTimeout(refresh, 5000);
     const t2 = setTimeout(refresh, 30000);
     return () => {
@@ -273,6 +243,8 @@ export function HybridFirmwareTab({ deviceId, isOnline }: { deviceId: string; is
   const espEnabled = isOnline && esp.updateAvailable && !espBusy && !stmBusy;
 
   const stmRescue = stmOta?.status === 'rescue_needed';
+  // Chưa có file cho loại mạch này = không có gì mới: hiện như ESP32.
+  const noImage = stm.reason === 'no_firmware' && !!stm.version;
   const stmCan = !!stm.target && (stm.updateAvailable || stmRescue);
   const stmEnabled = isOnline && stmCan && !stmBusy && !espBusy;
   const stmLabel = !isOnline
@@ -347,14 +319,14 @@ export function HybridFirmwareTab({ deviceId, isOnline }: { deviceId: string; is
       <Card icon={<CircuitBoard className="w-5 h-5 text-orange-600" />} title="Mạch công suất (STM32)">
         <Row label="Loại mạch" value={[stm.chip, stm.voltage].filter(Boolean).join(' · ') || '---'} />
         <Row label="Phiên bản hiện tại" value={stm.version ?? '---'} />
-        <Row label="Phiên bản mới nhất" value={stm.target?.version ?? '---'} />
-        {stm.reason && (
+        <Row label="Phiên bản mới nhất" value={stm.target?.version ?? (noImage ? stm.version : '---')} />
+        {stm.reason && !noImage && (
           <p className="text-sm text-amber-700">
-            {STM_REASON[stm.reason] ?? stm.reason}
+            {STM_OTA_REASON[stm.reason] ?? stm.reason}
             {stm.reason === 'esp_firmware_too_old' ? ` (cần ESP32 ≥ ${stm.minEspVersion})` : ''}
           </p>
         )}
-        {stm.target &&
+        {(stm.target || noImage) &&
           button(stmLabel, stmEnabled, stmMutation.isPending, () => {
             const ok = window.confirm(
               `Cập nhật mạch công suất lên ${stm.target?.version}?\n\n` +
@@ -366,10 +338,10 @@ export function HybridFirmwareTab({ deviceId, isOnline }: { deviceId: string; is
         {stmNote && <p className={`text-sm ${stmNote.error ? 'text-red-600' : 'text-orange-600'}`}>{stmNote.text}</p>}
         {stmOta && (
           <Progress
-            label={STM_LABEL[stmOta.status] ?? stmOta.status}
-            pct={stmOta.status === 'failed' || stmRescue ? null : stmPercent(stmOta)}
+            label={STM_OTA_LABEL[stmOta.status] ?? stmOta.status}
+            pct={stmOta.status === 'failed' || stmRescue ? null : stmOtaPercent(stmOta.status, stmOta.progress)}
             tone={stmOta.status === 'failed' || stmRescue ? 'error' : stmOta.status === 'success' ? 'ok' : 'info'}
-            detail={stmOta.message}
+            detail={stmOtaMessage(stmOta.message)}
           />
         )}
         <div className="pt-2 border-t border-gray-100">

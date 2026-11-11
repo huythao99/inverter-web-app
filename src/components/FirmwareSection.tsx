@@ -14,6 +14,8 @@ import type { DeviceStmInfo } from '../services/api';
 import { useOtaStatus } from '../hooks/useOtaStatus';
 import type { OtaStatus } from '../hooks/useOtaStatus';
 import { LoadingSpinner } from './LoadingSpinner';
+import { OTA_TERMINAL, STM_OTA_LABEL, STM_OTA_REASON, stmOtaMessage, stmOtaPercent } from '../services/stmOta';
+import { compareVersions } from '../utils/version';
 
 // ---------------------------------------------------------------------------
 // One "Firmware" card for an inverter: the ESP32 controller and the STM32
@@ -30,21 +32,10 @@ interface Notice {
   text: string;
 }
 
-const TERMINAL = new Set(['success', 'failed', 'rescue_needed']);
-const isRunning = (ota: OtaStatus | null) => !!ota && !TERMINAL.has(ota.status);
+const isRunning = (ota: OtaStatus | null) => !!ota && !OTA_TERMINAL.has(ota.status);
 
 const errorText = (err: unknown, fallback: string) =>
   (err as { response?: { data?: { message?: string } } })?.response?.data?.message || fallback;
-
-function compareVersions(a: string, b: string): number {
-  const pa = a.split('.').map((x) => parseInt(x, 10) || 0);
-  const pb = b.split('.').map((x) => parseInt(x, 10) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
-    if (d !== 0) return d;
-  }
-  return 0;
-}
 
 // ---- ESP32 -----------------------------------------------------------------
 
@@ -59,79 +50,6 @@ const ESP_LABEL: Record<string, string> = {
 };
 
 // ---- STM32 -----------------------------------------------------------------
-
-const STM_LABEL: Record<string, string> = {
-  starting: 'Đang bắt đầu',
-  downloading: 'Đang tải firmware',
-  verifying: 'Đang kiểm tra firmware',
-  flashing: 'Đang nạp mạch công suất',
-  installing: 'Đang nạp mạch công suất',
-  success: 'Cập nhật mạch công suất thành công',
-  failed: 'Cập nhật mạch công suất thất bại',
-  rescue_needed: 'Mạch công suất chưa có firmware — cần nạp lại',
-};
-
-const STM_REASON: Record<string, string> = {
-  esp_firmware_too_old: 'Cần cập nhật firmware bộ điều khiển (ESP32) trước',
-  version_unknown: 'Thiết bị chưa báo phiên bản mạch công suất',
-  no_firmware: 'Chưa có bản firmware cho loại mạch này',
-};
-
-/** ESP32 status messages (English) -> Vietnamese for the user. */
-const STM_MESSAGES: [RegExp, (m: RegExpExecArray) => string][] = [
-  [/^Checking STM32 firmware/, () => 'Đang kiểm tra bản firmware'],
-  [/^Downloading (\S+)/, (m) => `Đang tải bản ${m[1]}`],
-  [/^Image OK/, () => 'File firmware hợp lệ'],
-  [/^Stopping inverter/, () => 'Đang dừng phát điện và nạp mạch (~40 giây)'],
-  [/^Flashing STM32/, () => 'Đang nạp mạch công suất'],
-  [/^Update failed, restoring (\S+)/, (m) => `Nạp lỗi, đang khôi phục bản ${m[1]}`],
-  [/^STM32 updated to (\S+)/, (m) => `Mạch công suất đã lên bản ${m[1]}`],
-  [/^Flashed (\S+), waiting/, (m) => `Đã nạp bản ${m[1]}, đang chờ mạch báo phiên bản`],
-  [/^Already up to date/, () => 'Mạch công suất đã ở bản mới nhất'],
-  [/restored (\S+)$/, (m) => `Nạp không thành công, đã khôi phục bản ${m[1]} — máy chạy bình thường`],
-  [/: busy/, () => 'Mạch đang ghi dữ liệu, hãy thử lại sau ít phút'],
-  [/: no_ack/, () => 'Mạch công suất không phản hồi lệnh nạp'],
-  [/: (variant|product)/, () => 'File firmware không đúng loại mạch / điện áp — đã huỷ, máy chạy bản cũ'],
-  [/waits in bootloader/, () => 'Nạp lỗi giữa chừng, mạch đang chờ nạp lại. Bấm "Thử nạp lại"'],
-  [/^STM32 flash failed/, () => 'Nạp mạch công suất lỗi'],
-  [/No STM32 firmware/, () => 'Chưa có bản firmware cho loại mạch này'],
-  [/version unknown/, () => 'Chưa biết phiên bản mạch công suất'],
-  [/does not match board|Image says/, () => 'Bản firmware không khớp loại mạch'],
-  [/CRC32|Download|Size mismatch|Bad firmware URL|Cannot get STM32/, () => 'Tải firmware lỗi, hãy thử lại'],
-  [/busy/i, () => 'Thiết bị đang bận, hãy thử lại sau'],
-  [/No WiFi/, () => 'Thiết bị mất kết nối WiFi'],
-  [/Storage/, () => 'Lỗi bộ nhớ của thiết bị'],
-];
-
-function stmMessage(msg?: string): string | undefined {
-  if (!msg) return undefined;
-  for (const [re, fn] of STM_MESSAGES) {
-    const m = re.exec(msg);
-    if (m) return fn(m);
-  }
-  return msg;
-}
-
-/**
- * One bar for the whole STM32 update: download 0-20 %, verify 20-25 %,
- * flash 25-100 % (the ESP32 reports each phase from 0 again).
- */
-function stmPercent(ota: OtaStatus): number {
-  const p = Math.max(0, Math.min(100, ota.progress ?? 0));
-  switch (ota.status) {
-    case 'downloading':
-      return Math.round(p * 0.2);
-    case 'verifying':
-      return 22;
-    case 'flashing':
-    case 'installing':
-      return Math.round(25 + p * 0.75);
-    case 'success':
-      return 100;
-    default:
-      return 0;
-  }
-}
 
 // ---- UI pieces -------------------------------------------------------------
 
@@ -379,7 +297,7 @@ export function FirmwareSection({
     if (!stmLiveOta) return;
     setStmWaitingSince(null);
     setStmNotice(null);
-    if (!TERMINAL.has(stmLiveOta.status)) return;
+    if (!OTA_TERMINAL.has(stmLiveOta.status)) return;
     // The new version arrives with the next telemetry frames.
     const refresh = () => queryClient.invalidateQueries({ queryKey: ['device-stm', deviceId] });
     const t1 = setTimeout(refresh, 5000);
@@ -430,6 +348,8 @@ export function FirmwareSection({
   const stmFailed = stmOta?.status === 'failed' || stmRescue;
   const stmDone = stmOta?.status === 'success';
   const stmCanUpdate = !!stm?.target && (!!stm.updateAvailable || stmRescue);
+  // No image for this chip/voltage = nothing newer: shown like the ESP32.
+  const stmNoImage = stm?.reason === 'no_firmware' && !!stm.version;
   const stmEnabled = isOnline && stmCanUpdate && !stmBusy && !espBusy;
   const stmButtonLabel = !isOnline
     ? 'Thiết bị đang offline'
@@ -550,11 +470,14 @@ export function FirmwareSection({
             value={stm.chip && stm.voltage ? `${stm.chip} · ${stm.voltage}` : (stm.voltage ?? '---')}
           />
           <Row label="Phiên bản hiện tại" value={stm.version ?? '---'} />
-          <Row label="Phiên bản mới" value={stm.target?.version ?? '---'} />
-          {stm.reason && (
-            <p className="text-sm text-amber-700">{STM_REASON[stm.reason] ?? stm.reason}</p>
+          <Row
+            label="Phiên bản mới"
+            value={stm.target?.version ?? (stmNoImage ? stm.version! : '---')}
+          />
+          {stm.reason && !stmNoImage && (
+            <p className="text-sm text-amber-700">{STM_OTA_REASON[stm.reason] ?? stm.reason}</p>
           )}
-          {stm.target && (
+          {(stm.target || stmNoImage) && (
             <UpdateButton
               label={stmButtonLabel}
               enabled={stmEnabled}
@@ -573,10 +496,10 @@ export function FirmwareSection({
           )}
           {stmOta && (
             <Progress
-              label={STM_LABEL[stmOta.status] ?? stmOta.status}
-              pct={stmFailed ? null : stmPercent(stmOta)}
+              label={STM_OTA_LABEL[stmOta.status] ?? stmOta.status}
+              pct={stmFailed ? null : stmOtaPercent(stmOta.status, stmOta.progress)}
               tone={stmRescue ? 'warn' : stmFailed ? 'error' : stmDone ? 'ok' : 'info'}
-              detail={stmMessage(stmOta.message)}
+              detail={stmOtaMessage(stmOta.message)}
               color="bg-orange-500"
             />
           )}

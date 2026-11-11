@@ -167,6 +167,10 @@ export interface HybridSetting {
   pending: HybridConfigKey[]; // chưa áp dụng xuống máy
   lastNak: HybridNak | null;
   status: string;
+  /** Lúc lưu thay đổi đang chờ máy áp dụng (BE mới). */
+  requestAt?: string | null;
+  /** Firmware STM32 ($INFO FW), để làm mờ chế độ máy không chạy được. */
+  fw?: string | null;
 }
 
 export interface HybridEnergyDay {

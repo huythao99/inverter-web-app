@@ -68,10 +68,7 @@ export function Dashboard() {
   const tabs = [
     { id: 'inverter' as TabType, label: 'Hoà lưới', icon: Cpu, count: inverters.length },
     { id: 'charger' as TabType, label: 'Bộ sạc', icon: BatteryCharging, count: chargers.length },
-    // Hybrid tab only once the user has one (no hybrid on the market yet).
-    ...(hybrids.length > 0 || activeTab === 'hybrid'
-      ? [{ id: 'hybrid' as TabType, label: 'Hybrid', icon: Shuffle, count: hybrids.length }]
-      : []),
+    { id: 'hybrid' as TabType, label: 'Hybrid', icon: Shuffle, count: hybrids.length },
   ];
 
   const activeList =

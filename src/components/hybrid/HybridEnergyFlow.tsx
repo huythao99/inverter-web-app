@@ -1,7 +1,10 @@
-import { Home, Thermometer, UtilityPole, Fan } from 'lucide-react';
+import { Thermometer, Fan } from 'lucide-react';
 import type { HybridLatest } from '../../types';
 import { ACTIVE_W, IST_LABEL, hybridFlow, num } from '../../services/hinvlf';
 import batteryIcon from '../../assets/energy/icon_storage_battery.svg';
+import inverterIcon from '../../assets/energy/icon_inverter_3.svg';
+import gridIcon from '../../assets/energy/icon_electric_poles.svg';
+import houseIcon from '../../assets/energy/icon_house.svg';
 import { CARD } from './styles';
 
 // "Luồng năng lượng" của hybrid: Pin ⇄ Inverter ⇄ Lưới, Inverter → Nhà.
@@ -116,13 +119,14 @@ export function HybridEnergyFlow({ latest, online }: { latest?: HybridLatest; on
           {/* + xả: pin → inverter; − sạc: inverter → pin */}
           <Link watts={pinv ?? 0} reverse={(pinv ?? 0) < 0} color="#3b82f6" />
           <Node ring="border-gray-200" big>
-            <span className="text-[10px] sm:text-xs font-semibold text-gray-400 leading-tight">INVERTER</span>
+            <img src={inverterIcon} alt="" className="w-6 h-6 sm:w-8 sm:h-8" />
             <InverterPower watts={pinv} />
           </Node>
           {/* + lấy lưới: lưới → inverter (ngược chiều); − đẩy lưới: inverter → lưới */}
           <Link watts={pgrid ?? 0} reverse={(pgrid ?? 0) > 0} color="#10b981" />
           <Node ring={gridOk ? 'border-emerald-500' : 'border-gray-300'}>
-            <UtilityPole className={`w-7 h-7 sm:w-9 sm:h-9 ${gridOk ? 'text-emerald-600' : 'text-gray-400'}`} />
+            {/* cột điện: xám khi không có lưới */}
+            <img src={gridIcon} alt="" className={`w-7 h-7 sm:w-9 sm:h-9 ${gridOk ? '' : 'grayscale opacity-50'}`} />
             <span className="text-[10px] sm:text-xs font-semibold text-gray-500 tabular-nums">
               {t.VGRID ? `${Math.round(num(t.VGRID) ?? 0)}V` : '--'}
             </span>
@@ -133,7 +137,7 @@ export function HybridEnergyFlow({ latest, online }: { latest?: HybridLatest; on
         </div>
         <div className="flex justify-center">
           <Node ring="border-amber-400">
-            <Home className="w-7 h-7 sm:w-9 sm:h-9 text-amber-500" />
+            <img src={houseIcon} alt="" className="w-7 h-7 sm:w-9 sm:h-9" />
             <span className="text-[10px] sm:text-xs font-semibold text-gray-500 tabular-nums">
               {t.VOUT ? `${Math.round(num(t.VOUT) ?? 0)}V` : '--'}
             </span>

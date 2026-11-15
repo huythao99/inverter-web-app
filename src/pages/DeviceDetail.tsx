@@ -1350,6 +1350,7 @@ function ScheduleTab({
   gridTieOff: boolean;
 }) {
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Parse value when it changes
   useEffect(() => {
@@ -1381,6 +1382,18 @@ function ScheduleTab({
   };
 
   const handleSave = () => {
+    // Firmware only accepts 8 digits "VVVVPPPP": a blank/invalid slot would be
+    // sent as "NaN..." and silently skipped on the device.
+    const bad = schedules.findIndex((s) => {
+      const v = parseFloat(s.vBattUvp);
+      const w = Number(s.pMaxDischarge);
+      return !(v >= 10 && v <= 99.99) || !Number.isInteger(w) || w < 0 || w > 8999;
+    });
+    if (bad >= 0) {
+      setSaveError(`Khung giờ ${bad + 1}: điện áp phải từ 10 đến 99.99 V, công suất từ 0 đến 8999 W`);
+      return;
+    }
+    setSaveError(null);
     const newValue = formatScheduleValue(schedules);
     onChange(newValue);
     onSave(newValue);
@@ -1518,6 +1531,8 @@ function ScheduleTab({
           <span>Thêm lịch xả</span>
         </button>
       )}
+
+      {saveError && <p className="text-sm text-red-600">{saveError}</p>}
 
       {/* Save Button */}
       <button

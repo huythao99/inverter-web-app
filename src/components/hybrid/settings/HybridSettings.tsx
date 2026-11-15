@@ -1,15 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { isAxiosError } from "axios";
-import { RefreshCw } from "lucide-react";
-import { updateHybridSetting } from "../../../services/api";
-import type {
-  HybridConfig,
-  HybridLatest,
-  HybridMode,
-  HybridNumberKey,
-  HybridSetting,
-} from "../../../types";
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
+import { RefreshCw } from 'lucide-react';
+import { updateHybridSetting } from '../../../services/api';
+import type { HybridConfig, HybridLatest, HybridMode, HybridNumberKey, HybridSetting } from '../../../types';
 import {
   FIELD,
   FIELDS,
@@ -26,15 +20,15 @@ import {
   pullAlong,
   rangeHint,
   validate,
-} from "../../../services/hinvlf";
-import { fmtVolt, fmtWatt } from "../../../utils/fmt";
-import { HybridAdvancedSection } from "../advanced/AdvancedEntry";
-import { CARD } from "../styles";
-import { Collapsible, PendingBadge } from "../ui";
-import { useConfirm } from "../useConfirm";
-import { Ladder } from "./Ladder";
-import { ApplyStatus, ModeCard, ModePicker } from "./ModeCard";
-import { NumInput, PowerField } from "./inputs";
+} from '../../../services/hinvlf';
+import { fmtVolt, fmtWatt } from '../../../utils/fmt';
+import { HybridAdvancedSection } from '../advanced/AdvancedEntry';
+import { CARD } from '../styles';
+import { Collapsible, PendingBadge } from '../ui';
+import { useConfirm } from '../useConfirm';
+import { Ladder } from './Ladder';
+import { ApplyStatus, ModeCard, ModePicker } from './ModeCard';
+import { NumInput, PowerField } from './inputs';
 
 const ALL_KEYS = new Set<string>(FIELDS.map((f) => f.key));
 
@@ -59,15 +53,10 @@ export function HybridSettings({
   // $CFG mới nhất: live MQTT trước, rồi API.
   const cfg = latest?.cfg ?? setting.cfg ?? null;
   // Giá trị đang hiệu lực = $CFG của máy, đè bởi cấu hình server đã lưu.
-  const effective = useMemo<HybridConfig>(
-    () => ({ ...configFromCfg(cfg), ...setting.config }),
-    [cfg, setting.config],
-  );
+  const effective = useMemo<HybridConfig>(() => ({ ...configFromCfg(cfg), ...setting.config }), [cfg, setting.config]);
 
   const [mode, setMode] = useState<HybridMode | undefined>(effective.MODE);
-  const [draft, setDraft] = useState<Partial<Record<HybridNumberKey, string>>>(
-    {},
-  );
+  const [draft, setDraft] = useState<Partial<Record<HybridNumberKey, string>>>({});
   const [edited, setEdited] = useState<Set<string>>(new Set());
   /** Ô đang gõ (đã gõ, chưa rời ô): chưa kéo theo / chưa báo lỗi. */
   const [typing, setTyping] = useState<HybridNumberKey | null>(null);
@@ -97,16 +86,13 @@ export function HybridSettings({
   }, [effective.MODE, edited.size]);
 
   // Đang chờ máy áp dụng: hỏi lại mỗi 30 s (trạng thái, "sau n phút").
-  const pendingKeys = useMemo(
-    () => new Set<string>(setting.pending),
-    [setting.pending],
-  );
+  const pendingKeys = useMemo(() => new Set<string>(setting.pending), [setting.pending]);
   useEffect(() => {
     if (pendingKeys.size === 0) return;
     const t = setInterval(() => {
       setTick((x) => x + 1);
       void queryClient.invalidateQueries({
-        queryKey: ["hybrid-setting", deviceId],
+        queryKey: ['hybrid-setting', deviceId],
       });
     }, 30_000);
     return () => clearInterval(t);
@@ -118,23 +104,18 @@ export function HybridSettings({
     if (mode) c.MODE = mode;
     for (const f of FIELDS) {
       if (!edited.has(f.key)) continue;
-      const raw = (draft[f.key] ?? "").trim();
-      const v = raw === "" ? NaN : Number(raw.replace(",", "."));
-      c[f.key] = f.unit === "V" ? Math.round(v * 10) / 10 : Math.round(v);
+      const raw = (draft[f.key] ?? '').trim();
+      const v = raw === '' ? NaN : Number(raw.replace(',', '.'));
+      c[f.key] = f.unit === 'V' ? Math.round(v * 10) / 10 : Math.round(v);
     }
-    return pullAlong(
-      c,
-      freeze ? new Set([...edited, ...ALL_KEYS]) : edited,
-      setting.fw,
-    );
+    return pullAlong(c, freeze ? new Set([...edited, ...ALL_KEYS]) : edited, setting.fw);
   };
   const parsed = build(typing !== null);
 
   const errors: Partial<Record<HybridNumberKey, string>> = {
     ...validate(parsed, cfg, setting.fw),
   };
-  for (const [k, m] of Object.entries(serverErrors))
-    if (m) errors[k as HybridNumberKey] = m;
+  for (const [k, m] of Object.entries(serverErrors)) if (m) errors[k as HybridNumberKey] = m;
   if (typing) delete errors[typing]; // báo khi rời ô
 
   const changesOf = (c: HybridConfig): HybridConfig => {
@@ -142,40 +123,30 @@ export function HybridSettings({
     if (c.MODE && c.MODE !== effective.MODE) out.MODE = c.MODE;
     for (const f of FIELDS) {
       const v = c[f.key];
-      if (v !== undefined && Number.isFinite(v) && v !== effective[f.key])
-        out[f.key] = v;
+      if (v !== undefined && Number.isFinite(v) && v !== effective[f.key]) out[f.key] = v;
     }
     return out;
   };
   const changes = changesOf(parsed);
   const changeCount = Object.keys(changes).length;
 
-  const order: HybridNumberKey[] = [
-    ...modeFields(mode).map((f) => f.key),
-    ...LADDER_KEYS,
-    ...LIMIT_KEYS,
-  ];
-  const firstError =
-    order.find((k) => errors[k]) ??
-    (Object.keys(errors)[0] as HybridNumberKey | undefined);
+  const order: HybridNumberKey[] = [...modeFields(mode).map((f) => f.key), ...LADDER_KEYS, ...LIMIT_KEYS];
+  const firstError = order.find((k) => errors[k]) ?? (Object.keys(errors)[0] as HybridNumberKey | undefined);
 
   const save = useMutation({
     mutationFn: (c: HybridConfig) => updateHybridSetting(deviceId, c),
     onSuccess: (data) => {
-      queryClient.setQueryData(["hybrid-setting", deviceId], data);
+      queryClient.setQueryData(['hybrid-setting', deviceId], data);
       void queryClient.invalidateQueries({
-        queryKey: ["device-activity", "hybrid", deviceId],
+        queryKey: ['device-activity', 'hybrid', deviceId],
       });
       reset();
     },
     onError: (e) => {
       const list = isAxiosError(e)
-        ? (e.response?.data?.errors as
-            { key: string; message: string }[] | undefined)
+        ? (e.response?.data?.errors as { key: string; message: string }[] | undefined)
         : undefined;
-      setServerErrors(
-        Object.fromEntries((list ?? []).map((x) => [x.key, x.message])),
-      );
+      setServerErrors(Object.fromEntries((list ?? []).map((x) => [x.key, x.message])));
     },
   });
 
@@ -183,16 +154,16 @@ export function HybridSettings({
     setDraft((d) => ({ ...d, [key]: value }));
     setEdited((s) => new Set(s).add(key));
     setTyping(key);
-    setServerErrors((s) => ({ ...s, [key]: "" }));
+    setServerErrors((s) => ({ ...s, [key]: '' }));
   };
 
-  const undo = (key: HybridNumberKey | "MODE") => {
+  const undo = (key: HybridNumberKey | 'MODE') => {
     setEdited((s) => {
       const n = new Set(s);
       n.delete(key);
       return n;
     });
-    if (key === "MODE") setMode(effective.MODE);
+    if (key === 'MODE') setMode(effective.MODE);
     else setDraft((d) => ({ ...d, [key]: undefined }));
   };
 
@@ -202,7 +173,7 @@ export function HybridSettings({
     if (LIMIT_KEYS.includes(key)) setLimitsOpen(true);
     requestAnimationFrame(() => {
       const el = refs.current.get(key);
-      el?.scrollIntoView({ block: "center", behavior: "smooth" });
+      el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       el?.focus({ preventScroll: true });
     });
   };
@@ -211,17 +182,13 @@ export function HybridSettings({
     setTyping(null);
     const final = build(false);
     const c = changesOf(final);
-    if (
-      Object.keys(c).length === 0 ||
-      Object.keys(validate(final, cfg, setting.fw)).length > 0
-    )
-      return;
+    if (Object.keys(c).length === 0 || Object.keys(validate(final, cfg, setting.fw)).length > 0) return;
     if (c.MODE) {
       const ok = await ask({
         title: `Chuyển sang ${MODE_LABEL[c.MODE]}?`,
-        text: `Đang chạy: ${MODE_LABEL[effective.MODE ?? ""] ?? "—"}.\n\n${modeEffect(c.MODE, final)}`,
-        ok: "Chuyển và lưu",
-        danger: c.MODE === "OFF",
+        text: `Đang chạy: ${MODE_LABEL[effective.MODE ?? ''] ?? '—'}.\n\n${modeEffect(c.MODE, final)}`,
+        ok: 'Chuyển và lưu',
+        danger: c.MODE === 'OFF',
       });
       if (!ok) return;
     }
@@ -229,12 +196,9 @@ export function HybridSettings({
   }
 
   // Giá trị hiển thị: ô đã sửa = chữ đang gõ; ô khác = giá trị (kể cả tự chỉnh).
-  const textOf = (k: HybridNumberKey) =>
-    edited.has(k) ? (draft[k] ?? "") : fieldText(FIELD[k], parsed[k]);
-  const isPulled = (k: HybridNumberKey) =>
-    !edited.has(k) && parsed[k] !== effective[k];
-  const canUndo = (k: HybridNumberKey) =>
-    edited.has(k) && parsed[k] !== effective[k];
+  const textOf = (k: HybridNumberKey) => (edited.has(k) ? (draft[k] ?? '') : fieldText(FIELD[k], parsed[k]));
+  const isPulled = (k: HybridNumberKey) => !edited.has(k) && parsed[k] !== effective[k];
+  const canUndo = (k: HybridNumberKey) => edited.has(k) && parsed[k] !== effective[k];
   const inputProps = (k: HybridNumberKey) => ({
     value: textOf(k),
     field: FIELD[k],
@@ -262,32 +226,17 @@ export function HybridSettings({
   );
 
   const touched = (keys: HybridNumberKey[]) =>
-    keys.some(
-      (k) =>
-        edited.has(k) ||
-        errors[k] ||
-        pendingKeys.has(k) ||
-        parsed[k] !== effective[k],
-    );
-  const ladderShown =
-    ladderOpen ??
-    (LADDER_KEYS.some((k) => modeUsesKey(mode, k)) || touched(LADDER_KEYS));
+    keys.some((k) => edited.has(k) || errors[k] || pendingKeys.has(k) || parsed[k] !== effective[k]);
+  const ladderShown = ladderOpen ?? (LADDER_KEYS.some((k) => modeUsesKey(mode, k)) || touched(LADDER_KEYS));
   const limitsShown = limitsOpen ?? touched(LIMIT_KEYS);
 
-  const local = setting.src === "LOCAL" || cfg?.SRC === "LOCAL";
-  const nak =
-    setting.lastNak && !setting.lastNak.of.startsWith("CMD")
-      ? setting.lastNak
-      : null;
+  const local = setting.src === 'LOCAL' || cfg?.SRC === 'LOCAL';
+  const nak = setting.lastNak && !setting.lastNak.of.startsWith('CMD') ? setting.lastNak : null;
   const notices = [
-    ...(local
-      ? [
-          'Máy đang chỉnh tại chỗ: trên máy chọn "Cai dat tu = APP" để áp dụng cài đặt từ web.',
-        ]
-      : []),
+    ...(local ? ['Máy đang chỉnh tại chỗ: trên máy chọn "Cai dat tu = APP" để áp dụng cài đặt từ web.'] : []),
     ...(nak
       ? [
-          `Máy từ chối${nak.key ? ` ${FIELD[nak.key as HybridNumberKey]?.label ?? nak.key}` : ""}: ${NAK_LABEL[nak.err] ?? nak.err}`,
+          `Máy từ chối${nak.key ? ` ${FIELD[nak.key as HybridNumberKey]?.label ?? nak.key}` : ''}: ${NAK_LABEL[nak.err] ?? nak.err}`,
         ]
       : []),
   ];
@@ -297,7 +246,7 @@ export function HybridSettings({
       <ModeCard
         mode={mode}
         current={effective.MODE}
-        pending={pendingKeys.has("MODE")}
+        pending={pendingKeys.has('MODE')}
         status={
           <ApplyStatus
             pending={pendingKeys.size > 0}
@@ -308,14 +257,13 @@ export function HybridSettings({
         }
         notices={notices}
         onPick={() => setPicking(true)}
-        onUndo={() => undo("MODE")}
+        onUndo={() => undo('MODE')}
       >
         {modeFields(mode).length > 0
           ? modeFields(mode).map((f) => powerField(f.key))
-          : mode === "OFFGRID" && (
+          : mode === 'OFFGRID' && (
               <p className="text-xs text-gray-500">
-                Chế độ này dùng Pin ngắt xả / Pin chạy lại ở mục Ngưỡng điện áp
-                pin.
+                Chế độ này dùng Pin ngắt xả / Pin chạy lại ở mục Ngưỡng điện áp pin.
               </p>
             )}
       </ModeCard>
@@ -326,11 +274,7 @@ export function HybridSettings({
           summary={`Ngắt xả ${fmtVolt(parsed.VCUT)} · chạy lại ${fmtVolt(parsed.VRES)} · dừng xả ${fmtVolt(parsed.VEXP)}`}
           open={ladderShown}
           onToggle={() => setLadderOpen(!ladderShown)}
-          badge={
-            LADDER_KEYS.some((k) => pendingKeys.has(k)) ? (
-              <PendingBadge />
-            ) : undefined
-          }
+          badge={LADDER_KEYS.some((k) => pendingKeys.has(k)) ? <PendingBadge /> : undefined}
         >
           <Ladder
             cfg={cfg}
@@ -355,17 +299,13 @@ export function HybridSettings({
           summary={`Phát tối đa ${fmtWatt(parsed.PMAX)} · sạc tối đa ${fmtWatt(parsed.PCMAX)}`}
           open={limitsShown}
           onToggle={() => setLimitsOpen(!limitsShown)}
-          badge={
-            LIMIT_KEYS.some((k) => pendingKeys.has(k)) ? (
-              <PendingBadge />
-            ) : undefined
-          }
+          badge={LIMIT_KEYS.some((k) => pendingKeys.has(k)) ? <PendingBadge /> : undefined}
         >
           <div className="space-y-4">{LIMIT_KEYS.map(powerField)}</div>
         </Collapsible>
         <Collapsible
           title="Thông tin máy"
-          summary={`Hệ pin ${cfg?.SYS ?? "--"} V · ${cfg?.FHZ ?? "--"} Hz · áp sạc ${fmtVolt(cfg?.VCV)}`}
+          summary={`Hệ pin ${cfg?.SYS ?? '--'} V · ${cfg?.FHZ ?? '--'} Hz · áp sạc ${fmtVolt(cfg?.VCV)}`}
           open={infoOpen}
           onToggle={() => setInfoOpen((v) => !v)}
         >
@@ -374,7 +314,7 @@ export function HybridSettings({
               <div key={r.key} className="rounded-lg bg-gray-50 px-3 py-2">
                 <p className="text-[11px] text-gray-500">{r.label}</p>
                 <p className="text-sm font-semibold text-gray-900 tabular-nums">
-                  {cfg?.[r.key] ? `${cfg[r.key]} ${r.unit ?? ""}` : "—"}
+                  {cfg?.[r.key] ? `${cfg[r.key]} ${r.unit ?? ''}` : '—'}
                 </p>
               </div>
             ))}
@@ -385,12 +325,8 @@ export function HybridSettings({
       <HybridAdvancedSection deviceId={deviceId} online={online} />
 
       {(changeCount > 0 || save.isPending || firstError) && (
-        <div
-          className={`sticky bottom-3 z-20 ${CARD} bg-white/95 p-3 shadow-lg`}
-        >
-          <p className="mb-2 text-xs text-gray-500">
-            Thiết bị gửi thay đổi xuống máy, máy tự lưu lại.
-          </p>
+        <div className={`sticky bottom-3 z-20 ${CARD} bg-white/95 p-3 shadow-lg`}>
+          <p className="mb-2 text-xs text-gray-500">Thiết bị gửi thay đổi xuống máy, máy tự lưu lại.</p>
           <div className="flex items-center gap-3">
             {changeCount > 0 && (
               <button
@@ -406,23 +342,19 @@ export function HybridSettings({
               disabled={save.isPending || (!firstError && changeCount === 0)}
               onClick={() => (firstError ? jumpTo(firstError) : void onSave())}
               className={`flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-white disabled:opacity-50 ${
-                firstError
-                  ? "bg-red-600 hover:bg-red-700"
-                  : "bg-blue-600 hover:bg-blue-700"
+                firstError ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
               }`}
             >
               {save.isPending && <RefreshCw className="w-4 h-4 animate-spin" />}
               {firstError
-                ? `${Object.keys(errors).length > 1 ? `Còn ${Object.keys(errors).length} lỗi` : "Sửa lỗi"}: ${FIELD[firstError]?.label ?? firstError} ›`
+                ? `${Object.keys(errors).length > 1 ? `Còn ${Object.keys(errors).length} lỗi` : 'Sửa lỗi'}: ${FIELD[firstError]?.label ?? firstError} ›`
                 : changeCount > 1
                   ? `Lưu ${changeCount} thay đổi`
-                  : "Lưu"}
+                  : 'Lưu'}
             </button>
           </div>
           {save.isError && Object.keys(serverErrors).length === 0 && (
-            <p className="mt-2 text-xs text-red-600">
-              Không lưu được cài đặt, hãy thử lại.
-            </p>
+            <p className="mt-2 text-xs text-red-600">Không lưu được cài đặt, hãy thử lại.</p>
           )}
         </div>
       )}
@@ -434,7 +366,7 @@ export function HybridSettings({
           onClose={() => setPicking(false)}
           onSelect={(m) => {
             setMode(m);
-            setEdited((s) => new Set(s).add("MODE"));
+            setEdited((s) => new Set(s).add('MODE'));
             setLadderOpen(null); // mở lại theo chế độ mới
             setPicking(false);
           }}

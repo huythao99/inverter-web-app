@@ -142,14 +142,10 @@ export interface HybridLatest {
   updatedAt?: string;
 }
 
-export type HybridMode =
-  "OFF" | "OFFGRID" | "LOAD" | "CHG" | "EXPORT" | "ACCOUPLE" | "LOADACC";
-export type HybridNumberKey =
-  "PCHG" | "PEXP" | "PIMP" | "VEXP" | "VCUT" | "VRES" | "PMAX" | "PCMAX";
-export type HybridConfigKey = "MODE" | HybridNumberKey;
-export type HybridConfig = { MODE?: HybridMode } & Partial<
-  Record<HybridNumberKey, number>
->;
+export type HybridMode = 'OFF' | 'OFFGRID' | 'LOAD' | 'CHG' | 'EXPORT' | 'ACCOUPLE' | 'LOADACC';
+export type HybridNumberKey = 'PCHG' | 'PEXP' | 'PIMP' | 'VEXP' | 'VCUT' | 'VRES' | 'PMAX' | 'PCMAX';
+export type HybridConfigKey = 'MODE' | HybridNumberKey;
+export type HybridConfig = { MODE?: HybridMode } & Partial<Record<HybridNumberKey, number>>;
 
 export interface HybridSetting {
   userId: string;
@@ -196,7 +192,7 @@ export interface HybridEnergy {
   days: HybridEnergyDay[];
 }
 
-export type HybridCommand = "FAULT_RST" | "STOP" | "RUN" | "SAVE" | "LFMEAS";
+export type HybridCommand = 'FAULT_RST' | 'STOP' | 'RUN' | 'SAVE' | 'LFMEAS';
 
 /** Advanced settings menu (STM32 >= 5.4.12): GET /hybrids/:id/advanced. */
 export interface HybridAdvanced {
@@ -244,7 +240,7 @@ export interface HybridFirmwareOverview {
     minEspVersion: string;
     target: { version: string; crc32: string } | null;
     updateAvailable: boolean;
-    reason: null | "esp_firmware_too_old" | "version_unknown" | "no_firmware";
+    reason: null | 'esp_firmware_too_old' | 'version_unknown' | 'no_firmware';
     lastOta: {
       status: string;
       progress?: number | null;
@@ -306,7 +302,7 @@ export interface WebSocketDeviceData {
 
 export interface WebSocketOtaStatus {
   deviceId: string;
-  status: "pending" | "downloading" | "installing" | "completed" | "failed";
+  status: 'pending' | 'downloading' | 'installing' | 'completed' | 'failed';
   progress?: number;
   error?: string;
 }
@@ -327,7 +323,7 @@ export interface MonthEnergy {
 
 export interface EnergyReport extends MonthEnergy {
   tariff: {
-    mode: "tiered" | "flat";
+    mode: 'tiered' | 'flat';
     tiers: { size: number; price: number }[];
     flatPrice: number | null;
     vatPercent: number;
@@ -344,9 +340,9 @@ export interface EnergyReport extends MonthEnergy {
 export interface ActivityEntry {
   _id: string;
   deviceId: string;
-  kind: "inverter" | "charger" | "hybrid";
-  action: "settings" | "schedule" | "grid-tie" | "command";
-  source: "app" | "web" | "cms" | "api" | "system";
+  kind: 'inverter' | 'charger' | 'hybrid';
+  action: 'settings' | 'schedule' | 'grid-tie' | 'command';
+  source: 'app' | 'web' | 'cms' | 'api' | 'system';
   actor: string | null;
   actorLabel: string | null;
   summary: string;
@@ -382,7 +378,7 @@ export interface OverviewPeriod {
 export interface EnergyOverview {
   generatedAt: string;
   devices: { deviceId: string; name: string }[];
-  tariff: EnergyReport["tariff"];
+  tariff: EnergyReport['tariff'];
   today: OverviewPeriod & { date: string };
   month: OverviewPeriod & {
     year: number;

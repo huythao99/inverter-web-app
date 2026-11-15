@@ -29,7 +29,7 @@ export const ADV_GROUPS: { title: string; fields: AdvField[] }[] = [
     fields: [
       { key: 'N', label: 'Tỉ số biến áp', unit: '', step: 0.01, hint: '1,01 – 39,99. Đổi tỉ số thì điện cảm rò về 0 (máy đo lại)' },
       { key: 'CF', label: 'Tụ lọc Cf', unit: 'µF', step: 0.1, hint: '0,6 – 99,9 µF' },
-      { key: 'LF', label: 'Điện cảm rò Lf', unit: 'mH', step: 0.1, hint: '0 = máy tự đo khi khởi động' },
+      { key: 'LF', label: 'Điện cảm rò Lf', unit: 'mH', step: 0.1, hint: '0 = máy tự đo khi khởi động. Đặt cao hơn thật thì máy báo F1/F2 lúc khởi động' },
       {
         key: 'HALL', label: 'Hall sơ cấp', unit: '',
         options: [{ value: 'AUTO', label: 'Tự động' }, { value: 'YES', label: 'Có' }, { value: 'NO', label: 'Không' }],

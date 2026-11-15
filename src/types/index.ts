@@ -59,7 +59,7 @@ export interface DailyTotal {
 export interface ChargerDevice {
   _id: string;
   userId: string;
-  deviceId: string;      // dạng ChargerControl<N>
+  deviceId: string; // dạng ChargerControl<N>
   deviceName: string;
   description?: string;
   firmwareVersion?: string;
@@ -71,15 +71,15 @@ export interface ChargerDevice {
 export interface ChargerLatest {
   userId: string;
   deviceId: string;
-  status?: string;          // online/offline suy ra từ heartbeat
-  st?: string;              // trạng thái chạy (RUN/...)
-  flt?: string;             // mã lỗi (0 = ok)
+  status?: string; // online/offline suy ra từ heartbeat
+  st?: string; // trạng thái chạy (RUN/...)
+  flt?: string; // mã lỗi (0 = ok)
   lock?: string;
   rtry?: string;
-  out?: string;             // BAT/...
-  mode?: string;            // MPPT/...
-  ms?: string;              // TRACK/...
-  temp?: string;            // nhiệt độ (°C)
+  out?: string; // BAT/...
+  mode?: string; // MPPT/...
+  ms?: string; // TRACK/...
+  temp?: string; // nhiệt độ (°C)
   // PV (đầu vào solar)
   vpv?: string;
   ipv?: string;
@@ -94,7 +94,7 @@ export interface ChargerLatest {
   cfgVbat?: string;
   cfgIbat?: string;
   cfgPbat?: string;
-  src?: string;             // ESP/LOCAL
+  src?: string; // ESP/LOCAL
   cfgOut?: string;
   // Thông tin thiết bị
   fw?: string;
@@ -107,9 +107,9 @@ export interface ChargerSetting {
   _id?: string;
   userId: string;
   deviceId: string;
-  value: string;            // chuỗi 8 số HHHHLLLL
-  vbat?: number;            // đã decode: HHHH / 10
-  ibat?: number;            // đã decode: LLLL / 10
+  value: string; // chuỗi 8 số HHHHLLLL
+  vbat?: number; // đã decode: HHHH / 10
+  ibat?: number; // đã decode: LLLL / 10
   createdAt?: string;
   updatedAt?: string;
 }
@@ -142,18 +142,14 @@ export interface HybridLatest {
   updatedAt?: string;
 }
 
-export type HybridMode = 'OFF' | 'OFFGRID' | 'LOAD' | 'CHG' | 'EXPORT' | 'ACCOUPLE' | 'LOADACC';
+export type HybridMode =
+  "OFF" | "OFFGRID" | "LOAD" | "CHG" | "EXPORT" | "ACCOUPLE" | "LOADACC";
 export type HybridNumberKey =
-  | 'PCHG'
-  | 'PEXP'
-  | 'PIMP'
-  | 'VEXP'
-  | 'VCUT'
-  | 'VRES'
-  | 'PMAX'
-  | 'PCMAX';
-export type HybridConfigKey = 'MODE' | HybridNumberKey;
-export type HybridConfig = { MODE?: HybridMode } & Partial<Record<HybridNumberKey, number>>;
+  "PCHG" | "PEXP" | "PIMP" | "VEXP" | "VCUT" | "VRES" | "PMAX" | "PCMAX";
+export type HybridConfigKey = "MODE" | HybridNumberKey;
+export type HybridConfig = { MODE?: HybridMode } & Partial<
+  Record<HybridNumberKey, number>
+>;
 
 export interface HybridSetting {
   userId: string;
@@ -200,7 +196,7 @@ export interface HybridEnergy {
   days: HybridEnergyDay[];
 }
 
-export type HybridCommand = 'FAULT_RST' | 'STOP' | 'RUN' | 'SAVE';
+export type HybridCommand = "FAULT_RST" | "STOP" | "RUN" | "SAVE" | "LFMEAS";
 
 /** Advanced settings menu (STM32 >= 5.4.12): GET /hybrids/:id/advanced. */
 export interface HybridAdvanced {
@@ -215,6 +211,11 @@ export interface HybridAdvanced {
   src: string | null;
   mode: string | null;
   ist: string | null;
+  st?: string | null;
+  /** STM32 $INFO FW. */
+  fw?: string | null;
+  /** Last refusal of any command, e.g. of "CMD" ERR=MODE after $CMD,LFMEAS. */
+  lastNak?: HybridNak | null;
 }
 
 /** One firmware version with its release notes ("Cập nhật" tab). */
@@ -243,8 +244,13 @@ export interface HybridFirmwareOverview {
     minEspVersion: string;
     target: { version: string; crc32: string } | null;
     updateAvailable: boolean;
-    reason: null | 'esp_firmware_too_old' | 'version_unknown' | 'no_firmware';
-    lastOta: { status: string; progress?: number | null; message?: string | null; at: string } | null;
+    reason: null | "esp_firmware_too_old" | "version_unknown" | "no_firmware";
+    lastOta: {
+      status: string;
+      progress?: number | null;
+      message?: string | null;
+      at: string;
+    } | null;
     releases: FirmwareRelease[];
   };
 }
@@ -300,7 +306,7 @@ export interface WebSocketDeviceData {
 
 export interface WebSocketOtaStatus {
   deviceId: string;
-  status: 'pending' | 'downloading' | 'installing' | 'completed' | 'failed';
+  status: "pending" | "downloading" | "installing" | "completed" | "failed";
   progress?: number;
   error?: string;
 }
@@ -321,7 +327,7 @@ export interface MonthEnergy {
 
 export interface EnergyReport extends MonthEnergy {
   tariff: {
-    mode: 'tiered' | 'flat';
+    mode: "tiered" | "flat";
     tiers: { size: number; price: number }[];
     flatPrice: number | null;
     vatPercent: number;
@@ -338,9 +344,9 @@ export interface EnergyReport extends MonthEnergy {
 export interface ActivityEntry {
   _id: string;
   deviceId: string;
-  kind: 'inverter' | 'charger' | 'hybrid';
-  action: 'settings' | 'schedule' | 'grid-tie' | 'command';
-  source: 'app' | 'web' | 'cms' | 'api' | 'system';
+  kind: "inverter" | "charger" | "hybrid";
+  action: "settings" | "schedule" | "grid-tie" | "command";
+  source: "app" | "web" | "cms" | "api" | "system";
   actor: string | null;
   actorLabel: string | null;
   summary: string;
@@ -376,7 +382,7 @@ export interface OverviewPeriod {
 export interface EnergyOverview {
   generatedAt: string;
   devices: { deviceId: string; name: string }[];
-  tariff: EnergyReport['tariff'];
+  tariff: EnergyReport["tariff"];
   today: OverviewPeriod & { date: string };
   month: OverviewPeriod & {
     year: number;
@@ -386,7 +392,12 @@ export interface EnergyOverview {
   };
   year: OverviewPeriod & {
     year: number;
-    months: { month: number; generatedKwh: number; gridKwh: number; savings: number }[];
+    months: {
+      month: number;
+      generatedKwh: number;
+      gridKwh: number;
+      savings: number;
+    }[];
   };
   lifetime: OverviewPeriod & { since: string | null };
 }

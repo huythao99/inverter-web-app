@@ -37,11 +37,11 @@ function lfNakText(err?: string): string {
 
 /**
  * Lý do đo hỏng theo LFST, kèm số đo / số kiểm chéo (LFRAW / LFVS, 5.4.27) để
- * người dùng thấy lệch bao nhiêu. Không có NAK mà LFST vẫn 0: pin dưới 44 V.
+ * người dùng thấy lệch bao nhiêu (có khi firmware gửi hai trường này). LFST=0: máy chưa đo.
  */
 export function lfFailText(adv: Record<string, string>): string {
   const st = adv.LFST ?? '0';
-  if (st === '0') return 'Điện áp pin thấp, không đo được.';
+  if (st === '0') return 'Máy chưa thực hiện phép đo. Hãy thử đo lại.'; // LFST=0: "chưa đo"
   const raw = Number(adv.LFRAW) || 0;
   const vs = Number(adv.LFVS) || 0;
   const nums = raw > 0 || vs > 0 ? ` (đo ${raw.toFixed(2)} mH / kiểm chéo ${vs.toFixed(2)} mH)` : '';

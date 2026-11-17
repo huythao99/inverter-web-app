@@ -18,6 +18,7 @@ import type { ConfirmAsk } from '../ui';
 import { AdvGroups, Calibration, FactoryReset, LockForm, Note } from './AdvancedParts';
 import { errText, sleep, waitResult } from './helpers';
 import { LfMeasure, lfMeasSupported, runLfMeasure } from './LfMeasure';
+import { versionAtLeast } from '../../../utils/version';
 import type { Result } from './helpers';
 
 /**
@@ -33,6 +34,8 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [prevMode, setPrevMode] = useState<HybridMode | null>(null);
+  // Máy đang được giữ tắt bằng $CMD,STOP (STM32 >= 5.4.27) do trang này.
+  const [heldByStop, setHeldByStop] = useState(false);
   const [unsaved, setUnsaved] = useState(false);
   const [calOpen, setCalOpen] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -68,7 +71,12 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
     return () => clearInterval(t);
   }, [unlocked, calOpen, deviceId]);
 
-  const running = !(adv?.mode === 'OFF' && adv?.ist === 'STANDBY');
+  // STM32 >= 5.4.27: $SETADV nhận khi máy bị giữ tắt bằng $CMD,STOP (chỉ trong
+  // RAM, không đổi chế độ, $CMD,SAVE không ghi chế độ 0 vào flash; mất kết nối
+  // thì tắt bật nguồn là máy chạy lại đúng chế độ cũ). Bản cũ / chưa biết: chế độ 0.
+  const useStop = !!adv?.fw && versionAtLeast(adv.fw, '5.4.27');
+  const modeOff = adv?.mode === 'OFF' && adv?.ist === 'STANDBY';
+  const running = !(modeOff || (useStop && adv?.st === 'STOP'));
 
   const changes = useMemo(() => {
     const out: Record<string, string> = {};
@@ -189,7 +197,39 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
     }
   }
 
-  async function turnOff(): Promise<boolean> {
+  /** Dừng máy để đổi mục phần cứng: $CMD,STOP với máy mới, chế độ 0 với máy cũ. */
+  const turnOff = () => (useStop ? stopHold() : turnOffMode());
+
+  /** $CMD,STOP rồi đợi $TLM báo ST=STOP (STM32 >= 5.4.27). */
+  async function stopHold(): Promise<boolean> {
+    setBusy('off');
+    setMessage(null);
+    try {
+      await sendHybridCommand(deviceId, 'STOP');
+      setHeldByStop(true);
+      for (let i = 0; i < 20; i++) {
+        await sleep(1000);
+        const s = await getHybridAdvanced(deviceId);
+        queryClient.setQueryData(['hybrid-advanced', deviceId], s);
+        if (s.st === 'STOP') {
+          setMessage({
+            ok: true,
+            text: 'Máy đã dừng tạm thời, chế độ giữ nguyên. Sửa xong bấm "Chạy lại". Nếu mất kết nối, tắt bật lại nguồn là máy chạy bình thường.',
+          });
+          return true;
+        }
+      }
+      setMessage({ ok: false, text: 'Máy chưa dừng. Kiểm tra lại "Cài đặt từ = APP" trên máy.' });
+      return false;
+    } catch (err) {
+      setMessage({ ok: false, text: errText(err) });
+      return false;
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function turnOffMode(): Promise<boolean> {
     if (!adv?.mode) return false;
     setBusy('off');
     setMessage(null);
@@ -220,13 +260,14 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
 
   // $CMD,LFMEAS (STM32 >= 5.4.23): tắt máy → cảnh báo → đo → gợi ý đặt LF = LFID.
   async function measureLf() {
-    if (running) {
+    // Đo Lf cần chế độ 0 (giao thức §7), $CMD,STOP không đủ.
+    if (!modeOff) {
       const off = await ask({
         title: 'Cần tắt máy',
         text: 'Máy phải ở chế độ Tắt và dừng hẳn mới đo được. Tắt máy bây giờ?',
         ok: 'Tắt máy',
       });
-      if (!off || !(await turnOff())) return;
+      if (!off || !(await turnOffMode())) return;
     }
     const go = await ask({
       title: 'Đo điện cảm rò Lf',
@@ -270,6 +311,19 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
   }
 
   async function runAgain() {
+    if (heldByStop) {
+      setBusy('run');
+      try {
+        await sendHybridCommand(deviceId, 'RUN');
+        setHeldByStop(false);
+        setMessage({ ok: true, text: 'Đã gửi lệnh chạy lại.' });
+      } catch (err) {
+        setMessage({ ok: false, text: errText(err) });
+      } finally {
+        setBusy(null);
+      }
+      return;
+    }
     if (!prevMode) return;
     setBusy('run');
     try {
@@ -316,7 +370,11 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
             {running && (
               <Note tone="warn">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span>Máy đang chạy. Phải tắt máy để đổi các mục dưới đây (trừ hiệu chỉnh).</span>
+                  <span>
+                    {useStop
+                      ? 'Máy đang chạy. Phải dừng máy để đổi các mục dưới đây (trừ hiệu chỉnh: làm hiệu chỉnh trước khi dừng). Máy chỉ dừng tạm thời, chế độ giữ nguyên.'
+                      : 'Máy đang chạy. Phải tắt máy để đổi các mục dưới đây (trừ hiệu chỉnh).'}
+                  </span>
                   <button
                     type="button"
                     onClick={() => void turnOff()}
@@ -328,13 +386,13 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
                     ) : (
                       <Power className="w-3.5 h-3.5" />
                     )}
-                    Tắt máy
+                    {useStop ? 'Dừng máy' : 'Tắt máy'}
                   </button>
                 </div>
               </Note>
             )}
 
-            {(unsaved || prevMode) && (
+            {(unsaved || prevMode || heldByStop) && (
               <div className="flex flex-wrap gap-2">
                 {unsaved && (
                   <button
@@ -351,7 +409,7 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
                     Lưu vào máy
                   </button>
                 )}
-                {prevMode && (
+                {(prevMode || heldByStop) && (
                   <button
                     type="button"
                     onClick={() => void runAgain()}
@@ -359,7 +417,7 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
                     className={BTN_SECONDARY}
                   >
                     {busy === 'run' ? <LoadingSpinner size="sm" /> : <Play className="w-4 h-4" />}
-                    Chạy lại ({MODE_LABEL[prevMode] ?? prevMode})
+                    {heldByStop ? 'Chạy lại' : `Chạy lại (${prevMode ? (MODE_LABEL[prevMode] ?? prevMode) : ''})`}
                   </button>
                 )}
               </div>

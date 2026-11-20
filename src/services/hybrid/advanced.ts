@@ -12,6 +12,24 @@ export interface AdvField {
   confirm?: boolean;
 }
 
+/**
+ * Gợi ý theo firmware máy: từ STM32 5.4.29 bỏ Lf = 0 (tự đo), Lf 0,5 – 50 mH;
+ * đổi N không còn đụng Lf; đổi hệ pin thì máy đặt lại N theo hệ và Lf = 1,0.
+ */
+export function advHint(f: AdvField, fw529: boolean): string | undefined {
+  if (!fw529) return f.hint;
+  switch (f.key) {
+    case 'LF':
+      return '0,5 – 50 mH. Đặt cao hơn thật thì máy báo F1/F2 lúc khởi động';
+    case 'N':
+      return '1,01 – 39,99. Đổi hệ pin thì máy tự đặt lại theo hệ';
+    case 'SYS':
+      return 'Đổi hệ pin sẽ nạp lại ngưỡng pin, giới hạn công suất, tỉ số biến áp (N) và Lf = 1,0 mH';
+    default:
+      return f.hint;
+  }
+}
+
 export const ADV_GROUPS: { title: string; fields: AdvField[] }[] = [
   {
     title: 'Hệ thống',

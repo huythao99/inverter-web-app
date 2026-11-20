@@ -192,7 +192,7 @@ export interface HybridEnergy {
   days: HybridEnergyDay[];
 }
 
-export type HybridCommand = 'FAULT_RST' | 'STOP' | 'RUN' | 'SAVE' | 'LFMEAS';
+export type HybridCommand = 'FAULT_RST' | 'STOP' | 'RUN' | 'SAVE' | 'LFMEAS' | 'POWERON';
 
 /** Advanced settings menu (STM32 >= 5.4.12): GET /hybrids/:id/advanced. */
 export interface HybridAdvanced {

@@ -18,7 +18,7 @@ import {
   UtilityPole,
 } from 'lucide-react';
 import { LoadingSpinner } from '../../LoadingSpinner';
-import { ADV_CAL, ADV_GROUPS, ADV_LABEL } from '../../../services/hinvlf';
+import { ADV_CAL, ADV_GROUPS, ADV_LABEL, advHint } from '../../../services/hinvlf';
 import { BTN_DANGER, BTN_PRIMARY, BTN_SECONDARY, INPUT } from '../styles';
 
 // Các phần nội dung của hộp Cài đặt nâng cao (AdvancedDialog giữ trạng thái).
@@ -119,6 +119,7 @@ export function AdvGroups({
   changes,
   busy,
   onApply,
+  fw529 = false,
 }: {
   a: AdvValues;
   draft: Draft;
@@ -126,6 +127,8 @@ export function AdvGroups({
   changes: Draft;
   busy: string | null;
   onApply: () => void;
+  /** STM32 >= 5.4.29 (gợi ý Lf / N / SYS mới). */
+  fw529?: boolean;
 }) {
   const count = Object.keys(changes).length;
   return (
@@ -169,10 +172,10 @@ export function AdvGroups({
                     )}
                     {f.unit && !f.options && <span className="text-sm text-gray-500 w-8 shrink-0">{f.unit}</span>}
                   </div>
-                  {(f.hint || (f.key === 'LF' && a.LFID)) && (
+                  {(advHint(f, fw529) || (f.key === 'LF' && a.LFID)) && (
                     <span className="mt-1 block text-[11px] text-gray-400">
                       {f.key === 'LF' && a.LFID ? `Máy đo được: ${a.LFID} mH · ` : ''}
-                      {f.hint ?? ''}
+                      {advHint(f, fw529) ?? ''}
                     </span>
                   )}
                   {f.key === 'HALL' && value === 'YES' && a.HALLF === '0' && (

@@ -76,7 +76,12 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
   // thì tắt bật nguồn là máy chạy lại đúng chế độ cũ). Bản cũ / chưa biết: chế độ 0.
   const useStop = !!adv?.fw && versionAtLeast(adv.fw, '5.4.27');
   const modeOff = adv?.mode === 'OFF' && adv?.ist === 'STANDBY';
-  const running = !(modeOff || (useStop && adv?.st === 'STOP'));
+  // STM32 >= 5.4.29: Lf 0,5 – 50 (bỏ 0 = tự đo); đổi SYS thì máy đặt lại N và Lf = 1,0.
+  const fw529 = !!adv?.fw && versionAtLeast(adv.fw, '5.4.29');
+  // Đã giữ tắt bằng $CMD,STOP. Máy còn bị nút nguồn trên màn hình tắt (5.4.29+) thì
+  // $TLM có thể vẫn báo ST=OFF: STOP đã gửi là đủ để $SETADV.
+  const stopHeld = (st?: string | null) => st === 'STOP' || (heldByStop && st === 'OFF');
+  const running = !(modeOff || (useStop && stopHeld(adv?.st)));
 
   const changes = useMemo(() => {
     const out: Record<string, string> = {};
@@ -137,6 +142,13 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
   }
 
   async function apply(set: Record<string, string>, label: string): Promise<boolean> {
+    // 5.4.29: Lf 0,5 – 50 mH, không còn 0 = tự đo (máy trả RANGE).
+    const lf = set.LF !== undefined ? Number(set.LF) : NaN;
+    if (fw529 && Number.isFinite(lf) && (lf < 0.5 || lf > 50)) {
+      setMessage({ ok: false, text: 'Điện cảm rò Lf phải từ 0,5 đến 50 mH.' });
+      return false;
+    }
+    const sysChange = fw529 && set.SYS !== undefined && set.SYS !== a?.SYS;
     const needConfirm = ADV_GROUPS.flatMap((g) => g.fields).filter((f) => f.confirm && set[f.key] !== undefined);
     if (set.FACT) {
       const ok = await ask({
@@ -148,7 +160,9 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
     } else if (needConfirm.length) {
       const ok = await ask({
         title: 'Xác nhận thay đổi',
-        text: 'Đặt sai các mục này có thể làm hỏng pin:',
+        text: sysChange
+          ? 'Đặt sai các mục này có thể làm hỏng pin. Đổi hệ pin: máy đặt lại tỉ số biến áp N theo hệ mới và Lf = 1,0 mH.'
+          : 'Đặt sai các mục này có thể làm hỏng pin:',
         list: needConfirm.map((f) => `${f.label}: ${set[f.key]} ${f.unit}`),
         ok: 'Áp dụng',
       });
@@ -164,7 +178,9 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
         setMessage({
           ok: true,
           text: set.SYS
-            ? 'Đã áp dụng. Hệ pin mới đã nạp lại các ngưỡng pin, hãy kiểm tra lại trong trang Cài đặt.'
+            ? fw529
+              ? 'Đã áp dụng. Máy đã đặt tỉ số biến áp N theo hệ pin mới và Lf = 1,0 mH: kiểm tra N (nhóm Biến áp) đúng với biến áp đang lắp, đo lại Lf, và xem lại ngưỡng pin trong trang Cài đặt.'
+              : 'Đã áp dụng. Hệ pin mới đã nạp lại các ngưỡng pin, hãy kiểm tra lại trong trang Cài đặt.'
             : 'Đã áp dụng. Bấm "Lưu vào máy" để giữ lại sau khi máy khởi động lại.',
         });
         return true;
@@ -211,7 +227,7 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
         await sleep(1000);
         const s = await getHybridAdvanced(deviceId);
         queryClient.setQueryData(['hybrid-advanced', deviceId], s);
-        if (s.st === 'STOP') {
+        if (s.st === 'STOP' || s.st === 'OFF') {
           setMessage({
             ok: true,
             text: 'Máy đã dừng tạm thời, chế độ giữ nguyên. Sửa xong bấm "Chạy lại". Nếu mất kết nối, tắt bật lại nguồn là máy chạy bình thường.',
@@ -436,6 +452,7 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
                   changes={changes}
                   busy={busy}
                   onApply={() => void apply(changes, 'apply')}
+                  fw529={fw529}
                 />
                 {lfMeasSupported(adv?.fw) && <LfMeasure busy={busy} onMeasure={() => void measureLf()} />}
                 <Calibration

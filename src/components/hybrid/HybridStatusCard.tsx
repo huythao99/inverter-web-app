@@ -1,6 +1,15 @@
-import { AlertTriangle, Lock, Play, RefreshCw, RotateCcw, Square } from 'lucide-react';
+import { AlertTriangle, Lock, Play, Power, RefreshCw, RotateCcw, Square } from 'lucide-react';
 import type { HybridCommand, HybridLatest } from '../../types';
-import { CMD_LABEL, FLT_LABEL, MODE_LABEL, ST_LABEL, isRetrying, num, rfastOf } from '../../services/hinvlf';
+import {
+  CMD_LABEL,
+  FLT_LABEL,
+  MODE_LABEL,
+  ST_LABEL,
+  isPowerOff,
+  isRetrying,
+  num,
+  rfastOf,
+} from '../../services/hinvlf';
 import { CARD } from './styles';
 import { Row } from './ui';
 import { NakNotice } from './NakNotice';
@@ -30,16 +39,19 @@ export function HybridStatusCard({
   const hasFault = flt !== '' && flt !== '0' && !retrying;
   const locked = t.LOCK === '1';
   const stopped = t.ST === 'STOP';
+  // Tắt bằng nút nguồn trên máy (5.4.29+): ST=OFF, MODE vẫn là chế độ đặt.
+  const powerOff = isPowerOff(t);
   const srcEsp = src === 'ESP';
   const cmdNak = latest?.lastNak?.of?.startsWith('CMD') ? latest.lastNak : null;
 
-  const stCls = retrying
-    ? 'text-amber-600'
-    : t.ST === 'FLT'
-      ? 'text-red-600'
-      : t.ST === 'RUN'
-        ? 'text-green-600'
-        : 'text-gray-700';
+  const stCls =
+    retrying || powerOff
+      ? 'text-amber-600'
+      : t.ST === 'FLT'
+        ? 'text-red-600'
+        : t.ST === 'RUN'
+          ? 'text-green-600'
+          : 'text-gray-700';
 
   const btn = (cmd: HybridCommand, icon: React.ReactNode, cls: string, disabled = false) => (
     <button
@@ -59,7 +71,11 @@ export function HybridStatusCard({
       <div className="divide-y divide-gray-100">
         <Row label="Hoạt động">
           <span className={stCls}>
-            {retrying ? `Đang thử lại (${rfastOf(t)}/3)` : (ST_LABEL[t.ST ?? ''] ?? t.ST ?? '—')}
+            {retrying
+              ? `Đang thử lại (${rfastOf(t)}/3)`
+              : powerOff
+                ? 'Đã tắt bằng nút trên máy'
+                : (ST_LABEL[t.ST ?? ''] ?? t.ST ?? '—')}
           </span>
         </Row>
         <Row label="Chế độ">{MODE_LABEL[t.MODE ?? ''] ?? t.MODE ?? '—'}</Row>
@@ -95,17 +111,36 @@ export function HybridStatusCard({
       <div className="mt-3 grid grid-cols-2 gap-2">
         {(hasFault || locked) &&
           btn('FAULT_RST', <RotateCcw className="w-4 h-4" />, 'col-span-2 bg-red-600 text-white hover:bg-red-700')}
+        {/* Dừng từ app (STOP) mở bằng RUN; tắt bằng nút nguồn trên máy chỉ mở bằng
+            POWERON (RUN cố ý không bật được máy lúc đó). */}
         {stopped
           ? btn('RUN', <Play className="w-4 h-4" />, 'col-span-2 bg-green-600 text-white hover:bg-green-700', !srcEsp)
-          : btn(
-              'STOP',
-              <Square className="w-4 h-4" />,
-              'col-span-2 bg-gray-100 text-gray-700 hover:bg-gray-200',
-              !srcEsp
-            )}
+          : powerOff
+            ? btn(
+                'POWERON',
+                <Power className="w-4 h-4" />,
+                'col-span-2 bg-green-600 text-white hover:bg-green-700',
+                !srcEsp
+              )
+            : btn(
+                'STOP',
+                <Square className="w-4 h-4" />,
+                'col-span-2 bg-gray-100 text-gray-700 hover:bg-gray-200',
+                !srcEsp
+              )}
       </div>
+      {powerOff && srcEsp && (
+        <p className="mt-2 text-xs text-gray-500">
+          Máy được tắt bằng nút nguồn trên màn hình. "Bật máy" sẽ chạy lại đúng chế độ đang đặt. Cần bộ điều khiển
+          (ESP32) từ bản 1.3.9.
+        </p>
+      )}
       {!srcEsp && src && (
-        <p className="mt-2 text-xs text-amber-600">Dừng / chạy từ xa cần chọn "Cai dat tu = APP" trong menu máy.</p>
+        <p className="mt-2 text-xs text-amber-600">
+          {powerOff
+            ? 'Máy đang tắt bằng nút trên máy và để "Cai dat tu = MAY": chỉ bật lại được bằng nút trên máy.'
+            : 'Dừng / chạy từ xa cần chọn "Cai dat tu = APP" trong menu máy.'}
+        </p>
       )}
       {sent && !sending && !error && <p className="mt-2 text-xs text-green-600">Đã gửi lệnh "{CMD_LABEL[sent]}".</p>}
       {error && <p className="mt-2 text-xs text-red-600">Không gửi được lệnh, hãy thử lại.</p>}

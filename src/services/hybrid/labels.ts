@@ -75,6 +75,17 @@ export const CMD_LABEL: Record<HybridCommand, string> = {
   RUN: 'Chạy máy',
   SAVE: 'Lưu vào máy',
   LFMEAS: 'Đo điện cảm rò',
+  POWERON: 'Bật máy',
+};
+
+/**
+ * STM32 >= 5.4.29: máy bị tắt bằng nút nguồn trên màn hình (giữ ENTER 5 s). Khoá
+ * này không nằm trong MODE: $TLM báo ST=OFF trong khi MODE vẫn là chế độ đã đặt.
+ * Bật lại từ xa bằng POWERON (gửi lại chế độ), không phải RUN.
+ */
+export const isPowerOff = (t: Record<string, string | undefined>) => {
+  const mode = (t.MODE ?? '').trim();
+  return t.ST === 'OFF' && mode !== '' && mode !== 'OFF';
 };
 
 export const IST_LABEL: Record<string, string> = {

@@ -163,6 +163,10 @@ export interface HybridSetting {
   requestAt?: string | null;
   /** Firmware STM32 ($INFO FW), để làm mờ chế độ máy không chạy được. */
   fw?: string | null;
+  /** $TLM IST mới nhất; "HWTEST" (STM32 >= 5.4.30) = máy đang test phần cứng. */
+  ist?: string | null;
+  /** BE: đang test phần cứng và $TLM còn mới. */
+  hwTest?: boolean;
 }
 
 export interface HybridEnergyDay {
@@ -207,6 +211,8 @@ export interface HybridAdvanced {
   src: string | null;
   mode: string | null;
   ist: string | null;
+  /** STM32 >= 5.4.30: đang test phần cứng ($TLM còn mới). */
+  hwTest?: boolean;
   st?: string | null;
   /** STM32 $INFO FW. */
   fw?: string | null;

@@ -96,7 +96,19 @@ export const IST_LABEL: Record<string, string> = {
   CLOSING: 'Đang đóng lưới',
   GRID: 'Đã hòa lưới',
   FAULT: 'Lỗi',
+  LFMEAS: 'Đang đo điện cảm rò',
+  HWTEST: 'Đang test phần cứng',
 };
+
+/**
+ * STM32 >= 5.4.30: máy đang tự test phần cứng (bật từ phím trên máy, tự dừng
+ * trong ~150 s). Chỉ xem: ẩn mọi ô nhập, không gửi $SET / $SETADV / $CMD và
+ * không coi là lỗi.
+ */
+export const isHwTest = (ist?: string | null) => (ist ?? '').trim() === 'HWTEST';
+export const HWTEST_TEXT = 'Đang test phần cứng tại máy';
+export const HWTEST_HINT =
+  'Máy tự dừng test trong khoảng 2–3 phút. Trong lúc này chỉ xem, không gửi lệnh hay cài đặt xuống máy.';
 
 export const FLT_LABEL: Record<string, string> = {
   '1': 'F1 – Quá dòng phần cứng phía pin',
@@ -136,4 +148,5 @@ export const NAK_LABEL: Record<string, string> = {
   MODE: 'Máy chưa ở chế độ Tắt.',
   NOSIGNAL: 'Tín hiệu đo quá nhỏ.',
   LOCKED: 'Máy đang bị khóa hoặc lỗi, không chỉnh được.',
+  HWTEST: 'Máy đang test phần cứng, thử lại khi test xong.',
 };

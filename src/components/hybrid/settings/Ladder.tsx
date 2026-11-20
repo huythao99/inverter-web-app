@@ -22,6 +22,7 @@ export function Ladder({
   hint,
   input,
   onUndo,
+  nakOf,
 }: {
   cfg?: HinvlfFrame | null;
   parsed: HybridConfig;
@@ -35,6 +36,8 @@ export function Ladder({
   hint: (k: HybridNumberKey) => string;
   input: (k: HybridNumberKey) => ReactNode;
   onUndo: (k: HybridNumberKey) => void;
+  /** Lỗi máy trả cho đúng hàng ($NAK,SET,KEY=…). */
+  nakOf?: (k: HybridNumberKey) => string | undefined;
 }) {
   const pulled = LADDER_KEYS.filter((k) => !edited.has(k) && parsed[k] !== effective[k]);
   return (
@@ -48,7 +51,7 @@ export function Ladder({
       {LADDER_KEYS.map((k, i) => {
         const f = FIELD[k];
         const used = modeUsesKey(mode, k);
-        const err = errors[k];
+        const err = errors[k] ?? nakOf?.(k);
         const canUndo = edited.has(k) && parsed[k] !== effective[k];
         return (
           <Step
@@ -78,8 +81,8 @@ export function Ladder({
           <Wand2 className="w-4 h-4 shrink-0" />
           <span>
             Tự chỉnh để giữ đúng thứ tự:{' '}
-            {pulled.map((k) => `${FIELD[k].label} ${fmtVolt(effective[k])} → ${fmtVolt(parsed[k])}`).join(', ')}. Bấm Lưu
-            để gửi cả bộ.
+            {pulled.map((k) => `${FIELD[k].label} ${fmtVolt(effective[k])} → ${fmtVolt(parsed[k])}`).join(', ')}. Bấm Áp
+            dụng để gửi kèm.
           </span>
         </p>
       )}

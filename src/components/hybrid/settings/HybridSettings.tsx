@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { RefreshCw } from 'lucide-react';
+import { CheckCircle2, RefreshCw, Wrench } from 'lucide-react';
 import { updateHybridSetting } from '../../../services/api';
 import type { HybridConfig, HybridLatest, HybridMode, HybridNumberKey, HybridSetting } from '../../../types';
 import {
   FIELD,
   FIELDS,
+  HWTEST_HINT,
+  HWTEST_TEXT,
   LADDER_KEYS,
   LIMIT_KEYS,
   MODE_LABEL,
@@ -14,6 +16,7 @@ import {
   READONLY,
   configFromCfg,
   fieldText,
+  isHwTest,
   modeEffect,
   modeFields,
   modeUsesKey,
@@ -54,6 +57,8 @@ export function HybridSettings({
   const cfg = latest?.cfg ?? setting.cfg ?? null;
   // Giá trị đang hiệu lực = $CFG của máy, đè bởi cấu hình server đã lưu.
   const effective = useMemo<HybridConfig>(() => ({ ...configFromCfg(cfg), ...setting.config }), [cfg, setting.config]);
+  // STM32 >= 5.4.30: máy đang tự test phần cứng (IST=HWTEST): chỉ xem.
+  const hwTest = !!setting.hwTest || (online && isHwTest(latest?.tlm?.IST));
 
   const [mode, setMode] = useState<HybridMode | undefined>(effective.MODE);
   const [draft, setDraft] = useState<Partial<Record<HybridNumberKey, string>>>({});
@@ -67,6 +72,11 @@ export function HybridSettings({
   const [infoOpen, setInfoOpen] = useState(false);
   const [picking, setPicking] = useState(false);
   const [, setTick] = useState(0);
+  // Nút Áp dụng từng hàng (STM32 5.4.30): hàng đang gửi, các hàng vừa áp dụng
+  // xong ("Đã áp dụng" tới khi sửa lại).
+  const [applying, setApplying] = useState<string | null>(null);
+  const [applied, setApplied] = useState<Set<string>>(new Set());
+  const [rowFail, setRowFail] = useState<string | null>(null);
   const refs = useRef(new Map<string, HTMLInputElement | null>());
   const { ask, dialog } = useConfirm();
 
@@ -135,8 +145,9 @@ export function HybridSettings({
 
   const save = useMutation({
     mutationFn: (c: HybridConfig) => updateHybridSetting(deviceId, c),
-    onSuccess: (data) => {
+    onSuccess: (data, c) => {
       queryClient.setQueryData(['hybrid-setting', deviceId], data);
+      setApplied((s) => new Set([...s, ...Object.keys(c)]));
       void queryClient.invalidateQueries({
         queryKey: ['device-activity', 'hybrid', deviceId],
       });
@@ -150,9 +161,109 @@ export function HybridSettings({
     },
   });
 
+  /** Cấu hình khi chỉ áp dụng [key]: ô khác giữ giá trị máy, trừ ô bị kéo theo để giữ thứ tự. */
+  const rowConfig = (key: HybridNumberKey | 'MODE'): HybridConfig => {
+    const final = build(false);
+    const c: HybridConfig = { ...effective };
+    if (key === 'MODE') {
+      if (final.MODE) c.MODE = final.MODE;
+      return c;
+    }
+    c[key] = final[key];
+    return pullAlong(c, new Set([key]), setting.fw);
+  };
+  const rowChanged = (key: HybridNumberKey | 'MODE') =>
+    (key === 'MODE' || edited.has(key)) && changesOf(rowConfig(key))[key] !== undefined;
+
+  /** Nút "Áp dụng" cạnh một tham số: chỉ gửi khóa đó (+ ô bị kéo theo). */
+  async function applyRow(key: HybridNumberKey | 'MODE') {
+    if (hwTest || applying) return;
+    setTyping(null);
+    setRowFail(null);
+    const c = rowConfig(key);
+    const ch = changesOf(c);
+    if (Object.keys(ch).length === 0) return;
+    const errs = validate(c, cfg, setting.fw);
+    if (Object.keys(errs).length > 0) {
+      setServerErrors((x) => ({ ...x, ...errs }));
+      return;
+    }
+    if (ch.MODE) {
+      const ok = await ask({
+        title: `Chuyển sang ${MODE_LABEL[ch.MODE]}?`,
+        text: `Đang chạy: ${MODE_LABEL[effective.MODE ?? ''] ?? '—'}.\n\n${modeEffect(ch.MODE, c)}`,
+        ok: 'Chuyển chế độ',
+        danger: ch.MODE === 'OFF',
+      });
+      if (!ok) return;
+    }
+    setApplying(key);
+    try {
+      const data = await updateHybridSetting(deviceId, ch);
+      queryClient.setQueryData(['hybrid-setting', deviceId], data);
+      void queryClient.invalidateQueries({ queryKey: ['device-activity', 'hybrid', deviceId] });
+      const keys = Object.keys(ch);
+      setEdited((s) => new Set([...s].filter((k) => !keys.includes(k))));
+      setDraft((d) => Object.fromEntries(Object.entries(d).filter(([k]) => !keys.includes(k))));
+      setServerErrors((x) => Object.fromEntries(Object.entries(x).filter(([k]) => !keys.includes(k))));
+      setApplied((s) => new Set([...s, ...keys]));
+    } catch (e) {
+      const list = isAxiosError(e)
+        ? (e.response?.data?.errors as { key: string; message: string }[] | undefined)
+        : undefined;
+      if (list?.length) setServerErrors((x) => ({ ...x, ...Object.fromEntries(list.map((v) => [v.key, v.message])) }));
+      else
+        setRowFail(
+          (isAxiosError(e) ? (e.response?.data?.message as string | undefined) : undefined) ??
+            'Không áp dụng được, hãy thử lại.'
+        );
+    } finally {
+      setApplying(null);
+    }
+  }
+
+  /** Nút Áp dụng / Đã áp dụng của một hàng. */
+  const applyBtn = (key: HybridNumberKey | 'MODE') => {
+    const changed = rowChanged(key);
+    const done = !changed && applied.has(key);
+    return (
+      <button
+        type="button"
+        onClick={() => void applyRow(key)}
+        disabled={!changed || applying !== null || save.isPending}
+        className={`inline-flex shrink-0 items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold whitespace-nowrap ${
+          changed
+            ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50'
+            : done
+              ? 'bg-green-50 text-green-700'
+              : 'bg-gray-100 text-gray-400'
+        }`}
+      >
+        {applying === key ? (
+          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+        ) : done ? (
+          <CheckCircle2 className="w-3.5 h-3.5" />
+        ) : null}
+        {done ? 'Đã áp dụng' : 'Áp dụng'}
+      </button>
+    );
+  };
+
+  /** Lỗi máy trả cho đúng hàng ($NAK,SET,ERR=…,KEY=…). */
+  const nakOf = (k: string) => {
+    const n = setting.lastNak;
+    if (!n || n.of.startsWith('CMD') || n.key !== k || edited.has(k)) return undefined;
+    return `Máy từ chối: ${NAK_LABEL[n.err] ?? n.err}`;
+  };
+
   const setField = (key: HybridNumberKey, value: string) => {
     setDraft((d) => ({ ...d, [key]: value }));
     setEdited((s) => new Set(s).add(key));
+    setApplied((s) => {
+      const n = new Set(s);
+      n.delete(key);
+      return n;
+    });
     setTyping(key);
     setServerErrors((s) => ({ ...s, [key]: '' }));
   };
@@ -179,6 +290,7 @@ export function HybridSettings({
   };
 
   async function onSave() {
+    if (hwTest) return;
     setTyping(null);
     const final = build(false);
     const c = changesOf(final);
@@ -221,6 +333,8 @@ export function HybridSettings({
         pulled={isPulled(k)}
         canUndo={canUndo(k)}
         onUndo={() => undo(k)}
+        action={applyBtn(k)}
+        nak={nakOf(k)}
       />
     </div>
   );
@@ -231,7 +345,8 @@ export function HybridSettings({
   const limitsShown = limitsOpen ?? touched(LIMIT_KEYS);
 
   const local = setting.src === 'LOCAL' || cfg?.SRC === 'LOCAL';
-  const nak = setting.lastNak && !setting.lastNak.of.startsWith('CMD') ? setting.lastNak : null;
+  // Lỗi có khóa hiện ngay tại hàng đó (nakOf); ở đây chỉ lỗi chung.
+  const nak = setting.lastNak && !setting.lastNak.of.startsWith('CMD') && !setting.lastNak.key ? setting.lastNak : null;
   const notices = [
     ...(local ? ['Máy đang chỉnh tại chỗ: trên máy chọn "Cai dat tu = APP" để áp dụng cài đặt từ web.'] : []),
     ...(nak
@@ -241,8 +356,26 @@ export function HybridSettings({
       : []),
   ];
 
+  if (hwTest) {
+    // 5.4.30: máy đang test phần cứng: chỉ xem, ẩn mọi ô nhập, không gửi gì.
+    return (
+      <div className="space-y-3">
+        <div className={`${CARD} p-4 sm:p-5`}>
+          <p className="flex items-center gap-2 text-base font-semibold text-blue-800">
+            <Wrench className="w-5 h-5" /> {HWTEST_TEXT}
+          </p>
+          <p className="mt-1 text-sm text-gray-600">{HWTEST_HINT}</p>
+          <p className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Trang tự hiện lại cài đặt khi máy test xong.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
+      {rowFail && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{rowFail}</p>}
       <ModeCard
         mode={mode}
         current={effective.MODE}
@@ -258,6 +391,7 @@ export function HybridSettings({
         notices={notices}
         onPick={() => setPicking(true)}
         onUndo={() => undo('MODE')}
+        action={mode !== effective.MODE || applied.has('MODE') ? applyBtn('MODE') : undefined}
       >
         {modeFields(mode).length > 0
           ? modeFields(mode).map((f) => powerField(f.key))
@@ -287,11 +421,13 @@ export function HybridSettings({
             focusKey={focused}
             hint={(k) => rangeHint(k, parsed, cfg, edited, setting.fw)}
             input={(k) => (
-              <div onFocus={() => setFocused(k)}>
+              <div onFocus={() => setFocused(k)} className="flex flex-col items-end gap-1.5">
                 <NumInput {...inputProps(k)} compact />
+                {applyBtn(k)}
               </div>
             )}
             onUndo={undo}
+            nakOf={nakOf}
           />
         </Collapsible>
         <Collapsible
@@ -324,9 +460,12 @@ export function HybridSettings({
 
       <HybridAdvancedSection deviceId={deviceId} online={online} />
 
-      {(changeCount > 0 || save.isPending || firstError) && (
+      {/* Mỗi hàng có nút Áp dụng riêng (5.4.30): thanh dưới chỉ khi còn từ 2 thay đổi hoặc có lỗi. */}
+      {(changeCount > 1 || save.isPending || firstError) && (
         <div className={`sticky bottom-3 z-20 ${CARD} bg-white/95 p-3 shadow-lg`}>
-          <p className="mb-2 text-xs text-gray-500">Thiết bị gửi thay đổi xuống máy, máy tự lưu lại.</p>
+          <p className="mb-2 text-xs text-gray-500">
+            Mỗi mục có nút Áp dụng riêng. Thiết bị gửi xuống máy, máy tự lưu lại.
+          </p>
           <div className="flex items-center gap-3">
             {changeCount > 0 && (
               <button
@@ -349,8 +488,8 @@ export function HybridSettings({
               {firstError
                 ? `${Object.keys(errors).length > 1 ? `Còn ${Object.keys(errors).length} lỗi` : 'Sửa lỗi'}: ${FIELD[firstError]?.label ?? firstError} ›`
                 : changeCount > 1
-                  ? `Lưu ${changeCount} thay đổi`
-                  : 'Lưu'}
+                  ? `Áp dụng tất cả (${changeCount})`
+                  : 'Áp dụng'}
             </button>
           </div>
           {save.isError && Object.keys(serverErrors).length === 0 && (

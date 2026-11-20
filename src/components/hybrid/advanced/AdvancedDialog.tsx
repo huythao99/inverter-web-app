@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Play, Power, Save, SlidersHorizontal } from 'lucide-react';
+import { Play, Power, SlidersHorizontal, Wrench } from 'lucide-react';
 import { LoadingSpinner } from '../../LoadingSpinner';
 import {
   getHybridAdvanced,
@@ -10,8 +10,8 @@ import {
   updateHybridSetting,
 } from '../../../services/api';
 import type { HybridMode } from '../../../types';
-import { ADV_GROUPS, MODE_LABEL, advErrorText } from '../../../services/hinvlf';
-import { BTN_PRIMARY, BTN_SECONDARY } from '../styles';
+import { ADV_GROUPS, HWTEST_HINT, HWTEST_TEXT, MODE_LABEL, advErrorText, isHwTest } from '../../../services/hinvlf';
+import { BTN_SECONDARY } from '../styles';
 import { Sheet } from '../ui';
 import { useConfirm } from '../useConfirm';
 import type { ConfirmAsk } from '../ui';
@@ -41,6 +41,10 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [calDraft, setCalDraft] = useState<Record<string, string>>({});
   const [showPw, setShowPw] = useState(false);
+  // Nút Áp dụng từng hàng (STM32 5.4.30): hàng đã áp dụng ("Đã áp dụng" tới
+  // khi sửa lại) và lỗi máy trả cho đúng hàng.
+  const [applied, setApplied] = useState<Record<string, boolean>>({});
+  const [rowErr, setRowErr] = useState<Record<string, string>>({});
   const { ask: askRaw, dialog } = useConfirm();
   const ask = (q: Omit<ConfirmAsk, 'danger'>) => askRaw({ ...q, danger: true });
 
@@ -55,9 +59,11 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
   const { data: adv } = useQuery({
     queryKey: ['hybrid-advanced', deviceId],
     queryFn: () => getHybridAdvanced(deviceId),
-    enabled: unlocked,
-    refetchInterval: calOpen ? 1000 : 3000,
+    // Cả trước khi mở menu: biết máy có đang test phần cứng (IST=HWTEST) không.
+    refetchInterval: unlocked && calOpen ? 1000 : 3000,
   });
+  // STM32 >= 5.4.30: máy đang tự test phần cứng: chỉ xem, không gửi gì.
+  const hwTest = adv?.hwTest ?? isHwTest(adv?.ist);
   // Chỉ dùng $ADV máy gửi SAU lệnh gần nhất (máy là nguồn sự thật): bản cũ hơn
   // có thể là của trước khi nạp lại firmware (vd LF đã về mặc định).
   const fresh = !!adv?.advAt && (!adv.requestAt || new Date(adv.advAt).getTime() >= new Date(adv.requestAt).getTime());
@@ -141,11 +147,31 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
     }
   }
 
+  /** Sửa lại một ô: bỏ "Đã áp dụng" / lỗi cũ của hàng đó. */
+  function edit(key: string, v: string) {
+    setDraft((d) => ({ ...d, [key]: v }));
+    setApplied((x) => ({ ...x, [key]: false }));
+    setRowErr((x) => Object.fromEntries(Object.entries(x).filter(([k]) => k !== key)));
+  }
+
+  /**
+   * $SETADV các khóa trong set. label bắt đầu bằng "f:" = nút của một hàng: kết
+   * quả / lỗi hiện ngay tại hàng đó thay vì đầu hộp thoại.
+   */
   async function apply(set: Record<string, string>, label: string): Promise<boolean> {
+    if (hwTest) return false;
+    const row = label.startsWith('f:');
+    const keys = Object.keys(set);
+    const fail = (text: string, key?: string) => {
+      // Lỗi gắn đúng hàng: khóa máy trả trong NAK, hoặc hàng vừa bấm.
+      const at = key && set[key] !== undefined ? key : row && keys.length === 1 ? keys[0] : undefined;
+      if (at && at !== 'FACT') setRowErr((x) => ({ ...x, [at]: text }));
+      else setMessage({ ok: false, text });
+    };
     // 5.4.29: Lf 0,5 – 50 mH, không còn 0 = tự đo (máy trả RANGE).
     const lf = set.LF !== undefined ? Number(set.LF) : NaN;
     if (fw529 && Number.isFinite(lf) && (lf < 0.5 || lf > 50)) {
-      setMessage({ ok: false, text: 'Điện cảm rò Lf phải từ 0,5 đến 50 mH.' });
+      fail('Điện cảm rò Lf phải từ 0,5 đến 50 mH.', 'LF');
       return false;
     }
     const sysChange = fw529 && set.SYS !== undefined && set.SYS !== a?.SYS;
@@ -170,22 +196,28 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
     }
     setBusy(label);
     setMessage(null);
+    setRowErr((x) => Object.fromEntries(Object.entries(x).filter(([k]) => set[k] === undefined)));
     try {
       const r = await send(set);
       if (r.ok) {
         setUnsaved(true);
-        setDraft({});
+        // Chỉ bỏ nháp của các ô vừa gửi, ô khác đang sửa giữ nguyên.
+        setDraft((d) => Object.fromEntries(Object.entries(d).filter(([k]) => set[k] === undefined)));
+        setApplied((x) => ({ ...x, ...Object.fromEntries(keys.filter((k) => k !== 'FACT').map((k) => [k, true])) }));
+        // Hàng: "Đã áp dụng" tại nút là đủ, trừ đổi hệ pin (máy tự đổi N, Lf, ngưỡng pin).
+        if (row && !set.SYS) return true;
         setMessage({
           ok: true,
           text: set.SYS
             ? fw529
               ? 'Đã áp dụng. Máy đã đặt tỉ số biến áp N theo hệ pin mới và Lf = 1,0 mH: kiểm tra N (nhóm Biến áp) đúng với biến áp đang lắp, đo lại Lf, và xem lại ngưỡng pin trong trang Cài đặt.'
               : 'Đã áp dụng. Hệ pin mới đã nạp lại các ngưỡng pin, hãy kiểm tra lại trong trang Cài đặt.'
-            : 'Đã áp dụng. Bấm "Lưu vào máy" để giữ lại sau khi máy khởi động lại.',
+            : 'Đã áp dụng. Bấm "Lưu cài đặt" để giữ lại sau khi mất điện.',
         });
         return true;
       }
-      setMessage({ ok: false, text: advErrorText(r.err, r.key) });
+      if (r.err === 'PW' || r.err === 'PWLOCK') setMessage({ ok: false, text: advErrorText(r.err, r.key) });
+      else fail(advErrorText(r.err, r.key), r.key);
       if (r.err === 'PW' || r.err === 'PWLOCK') {
         pwRef.current = '';
         setUnlocked(false);
@@ -206,7 +238,7 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
       }
       return false;
     } catch (err) {
-      setMessage({ ok: false, text: errText(err) });
+      fail(errText(err));
       return false;
     } finally {
       setBusy(null);
@@ -314,11 +346,13 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
   }
 
   async function saveToMachine() {
+    if (hwTest) return;
     setBusy('save');
     try {
       await sendHybridCommand(deviceId, 'SAVE');
       setUnsaved(false);
-      setMessage({ ok: true, text: 'Đã gửi lệnh lưu vào máy.' });
+      setApplied({});
+      setMessage({ ok: true, text: 'Đã lưu cài đặt vào máy.' });
     } catch (err) {
       setMessage({ ok: false, text: errText(err) });
     } finally {
@@ -370,9 +404,20 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
       }
     >
       <div className="space-y-6">
-        {message && <Note tone={message.ok ? 'ok' : 'error'}>{message.text}</Note>}
+        {message && !hwTest && <Note tone={message.ok ? 'ok' : 'error'}>{message.text}</Note>}
 
-        {!unlocked ? (
+        {hwTest ? (
+          // 5.4.30: máy đang test phần cứng: chỉ xem, ẩn mọi ô nhập, không gửi gì.
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+            <p className="flex items-center gap-2 font-semibold">
+              <Wrench className="w-4 h-4" /> {HWTEST_TEXT}
+            </p>
+            <p className="mt-1 text-xs text-blue-800">{HWTEST_HINT}</p>
+            <p className="mt-3 flex items-center gap-2 text-xs text-blue-700">
+              <LoadingSpinner size="sm" /> Hộp thoại tự mở lại khi máy test xong.
+            </p>
+          </div>
+        ) : !unlocked ? (
           <LockForm
             value={pwInput}
             onChange={setPwInput}
@@ -408,23 +453,8 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
               </Note>
             )}
 
-            {(unsaved || prevMode || heldByStop) && (
+            {(prevMode || heldByStop) && (
               <div className="flex flex-wrap gap-2">
-                {unsaved && (
-                  <button
-                    type="button"
-                    onClick={() => void saveToMachine()}
-                    disabled={busy !== null}
-                    className={BTN_PRIMARY}
-                  >
-                    {busy === 'save' ? (
-                      <LoadingSpinner size="sm" className="text-white" />
-                    ) : (
-                      <Save className="w-4 h-4" />
-                    )}
-                    Lưu vào máy
-                  </button>
-                )}
                 {(prevMode || heldByStop) && (
                   <button
                     type="button"
@@ -448,10 +478,21 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
                 <AdvGroups
                   a={a}
                   draft={draft}
-                  setDraft={setDraft}
+                  setDraft={(v) => {
+                    setDraft(v);
+                    setRowErr({});
+                  }}
+                  onEdit={edit}
                   changes={changes}
                   busy={busy}
-                  onApply={() => void apply(changes, 'apply')}
+                  applied={applied}
+                  rowErr={rowErr}
+                  onApplyRow={(key) => {
+                    if (changes[key] !== undefined) void apply({ [key]: changes[key] }, `f:${key}`);
+                  }}
+                  onApplyAll={() => void apply(changes, 'apply')}
+                  unsaved={unsaved}
+                  onSave={() => void saveToMachine()}
                   fw529={fw529}
                 />
                 {lfMeasSupported(adv?.fw) && <LfMeasure busy={busy} onMeasure={() => void measureLf()} />}
@@ -463,8 +504,11 @@ export function AdvancedDialog({ deviceId, onClose }: { deviceId: string; onClos
                   onToggle={() => setCalOpen((v) => !v)}
                   busy={busy}
                   onApply={async (set, key) => {
-                    await apply(set, key);
+                    setApplied((x) => ({ ...x, [key]: false }));
+                    await apply(set, `f:${key}`);
                   }}
+                  applied={applied}
+                  rowErr={rowErr}
                 />
                 <FactoryReset busy={busy} onApply={() => void apply({ FACT: '1' }, 'fact')} />
               </>

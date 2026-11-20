@@ -42,6 +42,7 @@ export function ModeCard({
   notices,
   onPick,
   onUndo,
+  action,
   children,
 }: {
   mode?: HybridMode;
@@ -52,6 +53,8 @@ export function ModeCard({
   notices: string[];
   onPick: () => void;
   onUndo: () => void;
+  /** Nút Áp dụng của chế độ (5.4.30). */
+  action?: ReactNode;
   children?: ReactNode;
 }) {
   const def = modeDef(mode);
@@ -88,6 +91,7 @@ export function ModeCard({
         </span>
       </button>
       {changed && <UndoButton label="chế độ" onClick={onUndo} />}
+      {action}
       </div>
       {status && <div className="mt-3">{status}</div>}
       {notices.map((n) => (

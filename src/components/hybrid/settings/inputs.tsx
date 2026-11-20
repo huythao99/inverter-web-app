@@ -1,4 +1,4 @@
-import type { Ref } from 'react';
+import type { ReactNode, Ref } from 'react';
 import type { FieldDef } from '../../../services/hinvlf';
 import { PendingBadge, UndoButton } from '../ui';
 
@@ -57,6 +57,8 @@ export function PowerField({
   onChange,
   onCommit,
   onUndo,
+  action,
+  nak,
 }: {
   field: FieldDef;
   value: string;
@@ -69,6 +71,10 @@ export function PowerField({
   onChange: (v: string) => void;
   onCommit: () => void;
   onUndo: () => void;
+  /** Nút Áp dụng của hàng (5.4.30). */
+  action?: ReactNode;
+  /** Lỗi máy trả cho đúng hàng này. */
+  nak?: string;
 }) {
   return (
     <div>
@@ -78,9 +84,13 @@ export function PowerField({
         {pending && <PendingBadge />}
       </div>
       {field.modes && <p className="text-xs text-gray-500">{field.hint}</p>}
-      <div className="mt-1.5">
-        <NumInput value={value} field={field} error={error} inputRef={inputRef} onChange={onChange} onCommit={onCommit} />
+      <div className="mt-1.5 flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <NumInput value={value} field={field} error={error} inputRef={inputRef} onChange={onChange} onCommit={onCommit} />
+        </div>
+        {action}
       </div>
+      {nak && !error && <p className="mt-1 text-[11px] text-red-600">{nak}</p>}
       <p className={`mt-1 text-[11px] ${error ? 'text-red-600' : 'text-gray-400'}`}>
         {error || hint}
         {pulled && !error ? ' · tự chỉnh theo giới hạn mới' : ''}

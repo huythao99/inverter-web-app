@@ -1,10 +1,13 @@
-import { AlertTriangle, Lock, Play, Power, RefreshCw, RotateCcw, Square } from 'lucide-react';
+import { AlertTriangle, Lock, Play, Power, RefreshCw, RotateCcw, Square, Wrench } from 'lucide-react';
 import type { HybridCommand, HybridLatest } from '../../types';
 import {
   CMD_LABEL,
   FLT_LABEL,
+  HWTEST_HINT,
+  HWTEST_TEXT,
   MODE_LABEL,
   ST_LABEL,
+  isHwTest,
   isPowerOff,
   isRetrying,
   num,
@@ -36,7 +39,9 @@ export function HybridStatusCard({
   const flt = (t.FLT ?? '0').trim();
   // F1 + RFAST: máy tự chạy lại sau 0,3 s (STM32 5.4.21+), không báo lỗi.
   const retrying = isRetrying(t);
-  const hasFault = flt !== '' && flt !== '0' && !retrying;
+  // 5.4.30: máy tự test phần cứng (IST=HWTEST): chỉ xem, không báo lỗi, không gửi lệnh.
+  const hwTest = isHwTest(t.IST);
+  const hasFault = flt !== '' && flt !== '0' && !retrying && !hwTest;
   const locked = t.LOCK === '1';
   const stopped = t.ST === 'STOP';
   // Tắt bằng nút nguồn trên máy (5.4.29+): ST=OFF, MODE vẫn là chế độ đặt.
@@ -44,8 +49,9 @@ export function HybridStatusCard({
   const srcEsp = src === 'ESP';
   const cmdNak = latest?.lastNak?.of?.startsWith('CMD') ? latest.lastNak : null;
 
-  const stCls =
-    retrying || powerOff
+  const stCls = hwTest
+    ? 'text-blue-700'
+    : retrying || powerOff
       ? 'text-amber-600'
       : t.ST === 'FLT'
         ? 'text-red-600'
@@ -71,11 +77,13 @@ export function HybridStatusCard({
       <div className="divide-y divide-gray-100">
         <Row label="Hoạt động">
           <span className={stCls}>
-            {retrying
-              ? `Đang thử lại (${rfastOf(t)}/3)`
-              : powerOff
-                ? 'Đã tắt bằng nút trên máy'
-                : (ST_LABEL[t.ST ?? ''] ?? t.ST ?? '—')}
+            {hwTest
+              ? HWTEST_TEXT
+              : retrying
+                ? `Đang thử lại (${rfastOf(t)}/3)`
+                : powerOff
+                  ? 'Đã tắt bằng nút trên máy'
+                  : (ST_LABEL[t.ST ?? ''] ?? t.ST ?? '—')}
           </span>
         </Row>
         <Row label="Chế độ">{MODE_LABEL[t.MODE ?? ''] ?? t.MODE ?? '—'}</Row>
@@ -108,34 +116,42 @@ export function HybridStatusCard({
         </div>
       )}
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        {(hasFault || locked) &&
-          btn('FAULT_RST', <RotateCcw className="w-4 h-4" />, 'col-span-2 bg-red-600 text-white hover:bg-red-700')}
-        {/* Dừng từ app (STOP) mở bằng RUN; tắt bằng nút nguồn trên máy chỉ mở bằng
+      {hwTest && (
+        <p className="mt-3 flex items-start gap-2 rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+          <Wrench className="w-4 h-4 shrink-0" />
+          {HWTEST_HINT}
+        </p>
+      )}
+      {!hwTest && (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {(hasFault || locked) &&
+            btn('FAULT_RST', <RotateCcw className="w-4 h-4" />, 'col-span-2 bg-red-600 text-white hover:bg-red-700')}
+          {/* Dừng từ app (STOP) mở bằng RUN; tắt bằng nút nguồn trên máy chỉ mở bằng
             POWERON (RUN cố ý không bật được máy lúc đó). */}
-        {stopped
-          ? btn('RUN', <Play className="w-4 h-4" />, 'col-span-2 bg-green-600 text-white hover:bg-green-700', !srcEsp)
-          : powerOff
-            ? btn(
-                'POWERON',
-                <Power className="w-4 h-4" />,
-                'col-span-2 bg-green-600 text-white hover:bg-green-700',
-                !srcEsp
-              )
-            : btn(
-                'STOP',
-                <Square className="w-4 h-4" />,
-                'col-span-2 bg-gray-100 text-gray-700 hover:bg-gray-200',
-                !srcEsp
-              )}
-      </div>
-      {powerOff && srcEsp && (
+          {stopped
+            ? btn('RUN', <Play className="w-4 h-4" />, 'col-span-2 bg-green-600 text-white hover:bg-green-700', !srcEsp)
+            : powerOff
+              ? btn(
+                  'POWERON',
+                  <Power className="w-4 h-4" />,
+                  'col-span-2 bg-green-600 text-white hover:bg-green-700',
+                  !srcEsp
+                )
+              : btn(
+                  'STOP',
+                  <Square className="w-4 h-4" />,
+                  'col-span-2 bg-gray-100 text-gray-700 hover:bg-gray-200',
+                  !srcEsp
+                )}
+        </div>
+      )}
+      {powerOff && srcEsp && !hwTest && (
         <p className="mt-2 text-xs text-gray-500">
           Máy được tắt bằng nút nguồn trên màn hình. "Bật máy" sẽ chạy lại đúng chế độ đang đặt. Cần bộ điều khiển
           (ESP32) từ bản 1.3.9.
         </p>
       )}
-      {!srcEsp && src && (
+      {!srcEsp && src && !hwTest && (
         <p className="mt-2 text-xs text-amber-600">
           {powerOff
             ? 'Máy đang tắt bằng nút trên máy và để "Cai dat tu = MAY": chỉ bật lại được bằng nút trên máy.'

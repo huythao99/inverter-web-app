@@ -13,6 +13,7 @@ import {
   Lock,
   RotateCcw,
   Ruler,
+  Save,
   ShieldAlert,
   SlidersHorizontal,
   UtilityPole,
@@ -111,22 +112,76 @@ export function LockForm({
   );
 }
 
-/** Các nhóm tham số (hệ thống, biến áp, ngưỡng pin, cửa sổ lưới) + Áp dụng. */
+/**
+ * Nút Áp dụng cạnh một tham số (STM32 5.4.30): "Áp dụng" khi ô đã sửa, "Đã áp
+ * dụng" sau khi máy nhận (tới khi sửa lại), mờ khi chưa sửa.
+ */
+export function RowApply({
+  id,
+  changed,
+  applied,
+  busy,
+  onApply,
+}: {
+  id: string;
+  changed: boolean;
+  applied: boolean;
+  busy: string | null;
+  onApply: () => void;
+}) {
+  const done = !changed && applied;
+  return (
+    <button
+      type="button"
+      onClick={onApply}
+      disabled={!changed || busy !== null}
+      className={`inline-flex shrink-0 items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold whitespace-nowrap ${
+        changed
+          ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50'
+          : done
+            ? 'bg-green-50 text-green-700'
+            : 'bg-gray-100 text-gray-400'
+      }`}
+    >
+      {busy === `f:${id}` ? (
+        <LoadingSpinner size="sm" className="text-white" />
+      ) : done ? (
+        <CheckCircle2 className="w-3.5 h-3.5" />
+      ) : null}
+      {done ? 'Đã áp dụng' : 'Áp dụng'}
+    </button>
+  );
+}
+
+/** Các nhóm tham số (hệ thống, biến áp, ngưỡng pin, cửa sổ lưới), mỗi ô một nút Áp dụng. */
 export function AdvGroups({
   a,
   draft,
   setDraft,
+  onEdit,
   changes,
   busy,
-  onApply,
+  applied,
+  rowErr,
+  onApplyRow,
+  onApplyAll,
+  unsaved,
+  onSave,
   fw529 = false,
 }: {
   a: AdvValues;
   draft: Draft;
   setDraft: Dispatch<SetStateAction<Draft>>;
+  onEdit: (key: string, v: string) => void;
   changes: Draft;
   busy: string | null;
-  onApply: () => void;
+  applied: Record<string, boolean>;
+  rowErr: Record<string, string>;
+  onApplyRow: (key: string) => void;
+  onApplyAll: () => void;
+  /** Đã áp dụng mà chưa $CMD,SAVE. */
+  unsaved: boolean;
+  onSave: () => void;
   /** STM32 >= 5.4.29 (gợi ý Lf / N / SYS mới). */
   fw529?: boolean;
 }) {
@@ -141,7 +196,7 @@ export function AdvGroups({
               const value = draft[f.key] ?? a[f.key] ?? '';
               const changed = changes[f.key] !== undefined;
               return (
-                <label key={f.key} className="block">
+                <div key={f.key} className="block">
                   <span className={`flex items-center gap-1 text-xs font-medium mb-1 ${changed ? 'text-blue-700' : 'text-gray-600'}`}>
                     {f.label}
                     {f.confirm && <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />}
@@ -150,7 +205,7 @@ export function AdvGroups({
                     {f.options ? (
                       <select
                         value={value}
-                        onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
+                        onChange={(e) => onEdit(f.key, e.target.value)}
                         className={`${INPUT} ${changed ? 'border-blue-400' : ''}`}
                       >
                         {!f.options.some((o) => o.value === value) && <option value={value}>{value || '—'}</option>}
@@ -166,12 +221,20 @@ export function AdvGroups({
                         inputMode="decimal"
                         step={f.step}
                         value={value}
-                        onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
+                        onChange={(e) => onEdit(f.key, e.target.value)}
                         className={`${INPUT} tabular-nums ${changed ? 'border-blue-400' : ''}`}
                       />
                     )}
                     {f.unit && !f.options && <span className="text-sm text-gray-500 w-8 shrink-0">{f.unit}</span>}
+                    <RowApply
+                      id={f.key}
+                      changed={changed}
+                      applied={!!applied[f.key]}
+                      busy={busy}
+                      onApply={() => onApplyRow(f.key)}
+                    />
                   </div>
+                  {rowErr[f.key] && <span className="mt-1 block text-[11px] text-red-600">{rowErr[f.key]}</span>}
                   {(advHint(f, fw529) || (f.key === 'LF' && a.LFID)) && (
                     <span className="mt-1 block text-[11px] text-gray-400">
                       {f.key === 'LF' && a.LFID ? `Máy đo được: ${a.LFID} mH · ` : ''}
@@ -181,28 +244,38 @@ export function AdvGroups({
                   {f.key === 'HALL' && value === 'YES' && a.HALLF === '0' && (
                     <span className="mt-1 block text-[11px] text-red-600">Không thấy Hall, máy sẽ báo lỗi cảm biến.</span>
                   )}
-                </label>
+                </div>
               );
             })}
           </div>
         </section>
       ))}
 
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={onApply} disabled={count === 0 || busy !== null} className={BTN_PRIMARY}>
-            {busy === 'apply' ? <LoadingSpinner size="sm" className="text-white" /> : <Check className="w-4 h-4" />}
-            Áp dụng
+      {/* Dính đáy hộp thoại: "Lưu cài đặt" ($CMD,SAVE) riêng cho cả trang; từng mục
+          áp dụng bằng nút cạnh ô (5.4.30). */}
+      <div className="sticky bottom-0 z-10 -mx-5 space-y-1.5 border-t border-gray-100 bg-white/95 px-5 py-3 backdrop-blur">
+        <p className={`text-xs ${unsaved && count === 0 ? 'text-amber-700' : 'text-gray-500'}`}>
+          {count > 0
+            ? `Chưa áp dụng: ${Object.keys(changes).map((k) => ADV_LABEL[k] ?? k).join(', ')}`
+            : 'Áp dụng xong nhớ bấm Lưu để giữ sau khi mất điện'}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={onSave} disabled={!unsaved || busy !== null} className={BTN_PRIMARY}>
+            {busy === 'save' ? <LoadingSpinner size="sm" className="text-white" /> : <Save className="w-4 h-4" />}
+            {unsaved ? 'Lưu cài đặt' : 'Đã lưu'}
           </button>
+          {count > 1 && (
+            <button type="button" onClick={onApplyAll} disabled={busy !== null} className={BTN_SECONDARY}>
+              {busy === 'apply' ? <LoadingSpinner size="sm" /> : <Check className="w-4 h-4" />}
+              Áp dụng tất cả ({count})
+            </button>
+          )}
           {count > 0 && (
             <button type="button" onClick={() => setDraft({})} className={BTN_SECONDARY}>
               Hoàn tác
             </button>
           )}
         </div>
-        {count > 0 && (
-          <p className="text-xs text-gray-500">Sẽ đổi: {Object.keys(changes).map((k) => ADV_LABEL[k] ?? k).join(', ')}</p>
-        )}
       </div>
     </>
   );
@@ -217,6 +290,8 @@ export function Calibration({
   onToggle,
   busy,
   onApply,
+  applied = {},
+  rowErr = {},
 }: {
   a: AdvValues;
   draft: Draft;
@@ -225,6 +300,8 @@ export function Calibration({
   onToggle: () => void;
   busy: string | null;
   onApply: (set: Draft, key: string) => Promise<void>;
+  applied?: Record<string, boolean>;
+  rowErr?: Record<string, string>;
 }) {
   return (
     <section className="space-y-3">
@@ -245,6 +322,7 @@ export function Calibration({
                   <p className="text-xs text-gray-400 tabular-nums">
                     Máy đo {measured ?? '—'} {c.unit} · hệ số {a[c.factor] ?? '—'}
                   </p>
+                  {rowErr[c.key] && <p className="text-xs text-red-600">{rowErr[c.key]}</p>}
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -271,7 +349,13 @@ export function Calibration({
                     }
                     className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shrink-0 disabled:opacity-50"
                   >
-                    {busy === c.key ? <LoadingSpinner size="sm" className="text-white" /> : <Check className="w-4 h-4" />}
+                    {busy === `f:${c.key}` ? (
+                      <LoadingSpinner size="sm" className="text-white" />
+                    ) : applied[c.key] && draft[c.key] === undefined ? (
+                      <CheckCircle2 className="w-4 h-4" />
+                    ) : (
+                      <Check className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
               </li>

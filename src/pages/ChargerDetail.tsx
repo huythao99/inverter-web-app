@@ -810,21 +810,23 @@ export function ChargerSettingsTab({
         </div>
       </div>
 
-      {/* Save */}
-      <button
-        onClick={handleSave}
-        disabled={isSaving}
-        className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
-      >
-        {isSaving ? (
-          <LoadingSpinner size="sm" className="text-white" />
-        ) : (
-          <>
-            <Save className="w-5 h-5" />
-            <span>Lưu</span>
-          </>
-        )}
-      </button>
+      <div className="sticky bottom-3 z-20 rounded-2xl bg-white/80 p-2 shadow-lg backdrop-blur">
+        {/* Save */}
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+        >
+          {isSaving ? (
+            <LoadingSpinner size="sm" className="text-white" />
+          ) : (
+            <>
+              <Save className="w-5 h-5" />
+              <span>Lưu</span>
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 }
